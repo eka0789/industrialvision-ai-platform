@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import secrets
@@ -22,9 +23,11 @@ def verify_password(password: str, stored: str) -> bool:
     try:
         salt_b64, it_str, hash_b64 = stored.split("$")
         iterations = int(it_str)
-        salt = base64.b64decode(salt_b64)
-        expected = base64.b64decode(hash_b64)
-    except (ValueError, AttributeError):
+        salt = base64.b64decode(salt_b64, validate=True)
+        expected = base64.b64decode(hash_b64, validate=True)
+    except (ValueError, AttributeError, binascii.Error):
+        return False
+    if not 10_000 <= iterations <= 1_000_000 or len(salt) < 16 or len(expected) != 32:
         return False
     dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return hmac.compare_digest(dk, expected)

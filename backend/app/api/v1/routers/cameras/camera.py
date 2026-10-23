@@ -7,10 +7,11 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import require_roles
 from app.schemas.camera import CameraCreate, CameraListOut, CameraOut, CameraUpdate
 from app.db.session import get_db
-from app.db.models import Camera, ProductionLine  # Fixed import, User
+from app.db.models import Camera, ProductionLine, User
+from app.core.constants import Role
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/cameras", tags=["cameras"])
 @router.get("", response_model=List[CameraListOut], status_code=status.HTTP_200_OK)
 def list_cameras(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER)),
 ):
     return db.query(Camera).all()
 
@@ -27,7 +28,7 @@ def list_cameras(
 def create_camera(
     payload: CameraCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(Role.ADMIN)),
 ):
     # Check production line exists if line_id provided
     if payload.line_id:
@@ -45,7 +46,7 @@ def create_camera(
 def get_camera(
     camera_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER)),
 ):
     cam = db.query(Camera).filter(Camera.id == camera_id).first()
     if not cam:
@@ -58,7 +59,7 @@ def update_camera(
     camera_id: int,
     payload: CameraUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(Role.ADMIN)),
 ):
     cam = db.query(Camera).filter(Camera.id == camera_id).first()
     if not cam:
@@ -74,7 +75,7 @@ def update_camera(
 def delete_camera(
     camera_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(Role.ADMIN)),
 ):
     cam = db.query(Camera).filter(Camera.id == camera_id).first()
     if not cam:

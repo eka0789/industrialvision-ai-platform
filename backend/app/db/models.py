@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Float, Index, Integer, JSON, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Float, Index, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -92,7 +92,7 @@ class Camera(Base):
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # RTSP sanitized at API layer
     line_id: Mapped[int | None] = mapped_column(ForeignKey("production_lines.id"), nullable=True, index=True)
     resolution: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    fps_input: Mapped[float | None] = mapped_column(String(20), nullable=True)
+    fps_input: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="disconnected", nullable=False)
     last_inspection_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -203,7 +203,13 @@ class Inspection(Base):
         back_populates="inspection", uselist=False, cascade="save-update"
     )
 
-    __table_args__ = (Index("ix_inspections_decision_created", "decision", "created_at"),)
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('PASS', 'FAIL', 'REVIEW', 'ERROR')",
+            name="ck_inspections_decision",
+        ),
+        Index("ix_inspections_decision_created", "decision", "created_at"),
+    )
 
     def __repr__(self) -> str:
         return f"<Inspection(id={self.id}, decision={self.decision})>"

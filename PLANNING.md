@@ -12,8 +12,8 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 - The project has a partial FastAPI/SQLAlchemy backend, Alembic files, basic auth and camera API code, ONNX inference code, and a SQLite database. Several paths/configurations are inconsistent and not all routers/features are wired into the app.
 - `backend/app/services/decision.py` implements fail-safe PASS/FAIL/REVIEW/ERROR decisions. Decisions without a configured defect/anomaly policy return REVIEW.
 - `backend/app/services/inspection_manager.py` now persists inference results and decision reasons; errors are recorded as ERROR. A successful PASS requires a configured rejection or anomaly policy.
-- `python -m unittest discover -s tests -v` from `backend/` passed 25 tests, including configuration, decision, and SQLite-backed persistence tests with mocked inference. `python -m compileall -q app migrations tests` passed; importing `app.main` reports `IndustrialVision AI`.
-- No trained industrial model or dataset has been validated. ONNX model output parsing is not yet verified against an actual, task-appropriate model. No image/video inspection REST endpoint, frontend, PostgreSQL runtime, or Docker run has been verified.
+- `python -m unittest discover -s tests -v` from `backend/` passed 57 tests, including configuration, auth/RBAC, SQLite migration upgrade/downgrade, inference contract/adapter mocks, image API, history/detail, evidence storage, decision, and persistence tests. `python -m compileall -q app migrations tests` passed.
+- The image API and OpenAPI routes are wired; image inference persists actual adapter results, while unavailable model configuration is recorded as ERROR. YOLO/ONNX adapter behavior is unit-tested, but no actual industrial model/dataset or Ultralytics runtime has been validated. PostgreSQL runtime, video endpoint, frontend, and Docker have not been verified.
 - The four reference repositories’ public pages and READMEs were reviewed; their source code, dependency lockfiles, and model/data artifacts were not audited. No reference code has been copied.
 
 ## Task board
@@ -22,20 +22,20 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 - [x] **T00.1 — Inspect workspace and record constraints.** Inventory current modules, installed runtimes, test availability, Docker availability, and existing code before changing it.
 - [x] **T00.2 — Review reference README/license summaries.** Record what was actually checked and distinguish reported third-party metrics from this project’s results.
-- [x] **T00.3 — Reconcile project documentation with actual behavior.** README now distinguishes verified mocked tests from unvalidated inference/deployment, records the actual duplicated OpenAPI route prefixes and known broken flows, removes default-credential/production claims, and documents tested commands and blockers.
+- [x] **T00.3 — Reconcile project documentation with actual behavior.** README distinguishes verified tests from unvalidated model/runtime/deployment, lists current routes and bootstrap instructions, removes stale duplicate-prefix/default-credential claims, and documents tested commands and blockers.
 - [x] **T00.4 — Establish repository hygiene.** Added `.gitignore` entries for databases, evidence, model weights, caches, `.env`, generated logs, datasets, and frontend outputs. Existing untracked files were not deleted or staged.
 
 ### Phase 1 — Backend foundation and inspection core
 
 - [x] **T01 — Consolidate runtime configuration.** `app.core.config` is the canonical settings module; legacy `app.config` re-exports it. Environment names/defaults are centralized, unsafe production defaults are rejected, and SQLite/PostgreSQL URL + CORS parsing are tested.
-- [ ] **T02 — Make database and migrations reproducible.** Align SQLAlchemy models, Alembic metadata/env, SQLite local mode, and PostgreSQL production mode. Verify clean upgrade and downgrade in isolated test databases; add constraints/indexes where required.
-- [ ] **T03 — Verify authentication and RBAC.** Test password hashing, token expiry/signature, inactive-user rejection, role checks, and least-privilege route access. Remove/document insecure seed/default account assumptions.
+- [x] **T02 — Make database and migrations reproducible.** Aligned SQLAlchemy models/Alembic metadata and added a follow-up schema revision. Clean SQLite upgrade/downgrade passes in an isolated test database. PostgreSQL runtime remains unverified.
+- [x] **T03 — Verify authentication and RBAC.** Tests cover password hashing, malformed/expired tokens, inactive users, role checks, and least-privilege routes. First-admin creation is an interactive CLI; no default credentials are provisioned.
 - [x] **T04 — Decision engine and persistence baseline.** Support configured detection/anomaly rules, readable reasons, fail-safe inference errors, and persistence of actual mocked/real inference output. Unit and SQLite integration tests cover PASS, FAIL, REVIEW, and ERROR.
-- [ ] **T05 — Define inference contracts and validate output schemas.** Add model-neutral detection/anomaly interfaces and validated result schemas. Reject unsupported ONNX tensor layouts instead of interpreting arbitrary tensors as boxes. Add model-load failure and output-shape tests.
-- [ ] **T06 — Add an industrial object-detection adapter.** Support a task-appropriate YOLO model only when an explicit local model path/config is supplied. Define class names, confidence/IoU/image-size/device settings, preprocessing/postprocessing, and model metadata. Do not download or claim a generic pretrained model detects industrial defects.
-- [ ] **T07 — Add image inspection API.** Validate file type/content and upload limits; decode and preprocess image; run configured model; persist inspection, detections, decision, latency, and evidence; return actual result. If model is unavailable or inference fails, persist/return ERROR, never PASS.
-- [ ] **T08 — Add inspection history/detail APIs.** Add authenticated, paginated, filterable list and detail endpoints with stable response schemas and database-backed results.
-- [ ] **T09 — Add safe evidence storage.** Use generated IDs and configured evidence root, prevent path traversal, cap size, avoid trusting filenames, and test persistence/cleanup/error cases.
+- [x] **T05 — Define inference contracts and validate output schemas.** Added model-neutral result schemas and validated detection/anomaly contracts. ONNX accepts only explicit `xyxy_conf_class_nx6`; unsupported layouts, invalid values, and unknown classes are rejected. Contract/model-load failure tests pass.
+- [x] **T06 — Add an industrial object-detection adapter.** Added explicit local model path/config, class names, thresholds, image size, device, metadata, and YOLO adapter contract tests. Ultralytics runtime and real task-specific weights/classes are NOT validated; this does not establish industrial detection capability.
+- [x] **T07 — Add image inspection API.** Authenticated multipart endpoint validates image type/signature, upload size and pixel count, decodes input, runs the configured adapter, and persists detections, decision, latency, and evidence. Model load/inference failures are ERROR, never PASS. API tests pass with mocked inference.
+- [x] **T08 — Add inspection history/detail APIs.** Added authenticated, database-backed pagination/filtering and stable detail response; tests cover results and filters.
+- [x] **T09 — Add safe evidence storage.** Evidence uses generated inspection IDs and configured root, validates identifiers/extensions, prevents traversal, and supports safe idempotent deletion; tests cover storage and cleanup.
 
 ### Phase 2 — Video and cameras
 
@@ -84,7 +84,7 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ## Recommended execution order
 
-Work one task at a time, keeping changes small and tested. The immediate next task is **T02 — Make database and migrations reproducible**, followed by T03 auth/RBAC. Once the backend starts consistently, prioritize T05 inference contracts before adding model-specific inference (T06) and image inspection API (T07). Build video/camera, WebSocket, anomaly detection, frontend, and deployment on top of those tested contracts.
+Work one task at a time, keeping changes small and tested. Phase 1 tasks T02, T03, and T05–T09 have passing local SQLite/unit/API tests. The immediate next task is **T10 — Implement camera source abstraction**, starting with video-file/simulated input. Keep PostgreSQL runtime, actual model inference, and deployment validation as explicit gates.
 
 ## Cross-cutting definition of done for every task
 

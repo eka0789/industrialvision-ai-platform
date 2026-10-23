@@ -20,8 +20,8 @@ class TokenPayload(BaseModel):
 
 
 class TokenRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=1, max_length=128)
 
 
 class TokenRefreshRequest(BaseModel):

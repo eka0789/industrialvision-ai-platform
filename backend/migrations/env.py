@@ -12,9 +12,10 @@ _PROJECT_ROOT = os.path.dirname(_HERE)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
+from alembic import context  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
-from alembic import context  # noqa: E402
+from app.db import models as _models  # noqa: E402,F401
 
 config = context.config
 if config.config_file_name is not None:
@@ -30,16 +31,25 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _run_migrations(connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
+        _run_migrations(supplied_connection)
+        return
+
     connectable = engine_from_config(
         {"sqlalchemy.url": settings.DATABASE_URL},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
-        with context.begin_transaction():
-            context.run_migrations()
+        _run_migrations(connection)
 
 
 if context.is_offline_mode():

@@ -1,47 +1,60 @@
-"""Admin endpoints for seed data and system management."""
+"""Administrator-only user administration; initial admin is provisioned via CLI."""
 
 from __future__ import annotations
 
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_db, get_current_user
-from app.core.security import verify_password
-from app.db.models import User, Role
-from app.db.session import SessionLocal
-from app.schemas.common import Message
-from app.schemas.user import UserCreate
+from app.api.v1.deps import require_roles
+from app.core.constants import Role as RoleNames
+from app.db.models import Role, User
+from app.db.session import get_db
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@router.post("/seed", response_model=Message, status_code=status.HTTP_201_OK)
-def seed_initial_data(db: Session = Depends(get_db)):
-    """Populate initial seed data: admin user and default roles."""
-    # Create default roles if not exist
-    admin_role = db.query(Role).filter(Role.name == "admin").first()
-    if not admin_role:
-        admin_role = Role(name="admin", description="Administrator role")
-        db.add(admin_role)
-        db.commit()
+class AdminUserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=80)
+    email: str | None = Field(default=None, max_length=255)
+    password: str = Field(min_length=12, max_length=128)
+    role: str = Field(default=RoleNames.OPERATOR, max_length=40)
 
-    operator_role = db.query(Role).filter(Role.name == "operator").first()
-    if not operator_role:
-        operator_role = Role(name="operator", description="Operator role")
-        db.add(operator_role)
-        db.commit()
 
-    # Create admin user if not exist
-    admin_user = db.query(User).filter(User.username == "admin").first()
-    if not admin_user:
-        admin_user = User(
-            username="admin",
-            email="admin@industrialvision.ai",
-            hashed_password=verify_password("admin123"),
-            role_id=admin_role.id,
-            is_active=True,
-        )
-        db.add(admin_user)
-        db.commit()
+@router.post("/users", status_code=status.HTTP_201_CREATED)
+def create_user(
+    payload: AdminUserCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_roles(RoleNames.ADMIN)),
+) -> dict:
+    if payload.role not in RoleNames.all():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown role")
+    if db.query(User).filter(User.username == payload.username).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
+    if payload.email and db.query(User).filter(User.email == payload.email).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
 
-    return {"detail": "Seed data populated successfully"}
+    role = db.query(Role).filter(Role.name == payload.role).first()
+    if role is None:
+        role = Role(name=payload.role, description=f"{payload.role.replace('_', ' ').title()} role")
+        db.add(role)
+        db.flush()
+
+    user = User(
+        username=payload.username,
+        email=payload.email,
+        hashed_password="",
+        role_id=role.id,
+        is_active=True,
+    )
+    user.set_password(payload.password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": role.name,
+        "is_active": user.is_active,
+    }

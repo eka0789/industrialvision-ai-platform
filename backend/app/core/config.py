@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     ACCESS_LOG: bool = True
     LOG_LEVEL: str = "INFO"
 
-    JWT_SECRET: str = "dev-only-change-me"
+    JWT_SECRET: str = "dev-only-insecure-secret-change-before-production-32"
     JWT_ALGORITHM: Literal["HS256"] = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15, ge=1, le=1440)
 
@@ -36,16 +36,19 @@ class Settings(BaseSettings):
 
     MAX_UPLOAD_BYTES: int = Field(default=100 * 1024 * 1024, gt=0)
     MAX_UPLOAD_VIDEO_BYTES: int = Field(default=5 * 1024 * 1024 * 1024, gt=0)
+    MAX_IMAGE_PIXELS: int = Field(default=40_000_000, gt=0)
     MAX_INFLIGHT_FRAMES_PER_CAMERA: int = Field(default=64, gt=0)
     MAX_CAMERA_CONNECTIONS: int = Field(default=16, gt=0)
 
     EVIDENCE_ROOT: str = "data/evidence"
     SAMPLE_MEDIA_DIR: str = "data/samples"
 
-    DEFAULT_ONNX_MODEL: str = "models/model.onnx"
+    MODEL_ROOT: str = "models"
+    DEFAULT_ONNX_MODEL: str = "model.onnx"
     ONNX_DEVICE: Literal["cpu", "cuda"] = "cpu"
     CONF_THRESHOLD: float = Field(default=0.25, ge=0.0, le=1.0)
     IOU_THRESHOLD: float = Field(default=0.45, ge=0.0, le=1.0)
+    IMAGE_SIZE: int = Field(default=640, ge=32, le=4096)
     FPS_INPUT: float = Field(default=25.0, gt=0.0, le=240.0)
     DEFAULT_ANOMALY_SCORE_THRESHOLD: float = Field(default=0.5, ge=0.0, le=1.0)
 

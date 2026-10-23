@@ -10,7 +10,13 @@ from fastapi import WebSocket
 from app.db.models import Camera, Inspection, InspectionSession, ModelVersion
 from app.db.session import SessionLocal
 from app.services.decision import DecisionRules, decide_inspection
-from app.services.inference import predict_frame
+
+
+def predict_frame(frame: Any) -> dict[str, Any]:
+    """Load optional computer-vision dependencies only when inference is requested."""
+    from app.services.inference import predict_frame as run_inference
+
+    return run_inference(frame)
 
 
 class InspectionManager:

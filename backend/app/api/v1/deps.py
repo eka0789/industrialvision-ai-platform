@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from typing import List
-
-from fastapi import Depends, Header, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.core.security import verify_password
-from app.core.constants import Role
+
 from app.db.session import get_db
 from app.db.models import User  # Fixed import path
 
@@ -25,10 +22,14 @@ def get_current_user(
     token = credentials.credentials
     try:
         from app.core.jwt import decode_token
+
         payload = decode_token(token)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    user = db.get(User, payload["user_id"])
+        user_id = int(payload.get("user_id", 0))
+        if user_id <= 0 or payload.get("sub") != str(user_id):
+            raise ValueError("Invalid token subject")
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+    user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
     return user
