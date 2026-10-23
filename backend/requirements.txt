@@ -1,0 +1,8 @@
+# ---------------------------------------------------------------------------
+# IndustrialVision AI  -  Runtime requirements
+# ---------------------------------------------------------------------------
+# core:                    Required for the application server, API, DB, auth
+# cv (optional extra):     Real image/video inference (OpenCV + ONNX + optional
+#                           Ultralytics YOLO weights + anomaly extras)
+# ---------------------------------------------------------------------------
+-r requirements-core.txt
