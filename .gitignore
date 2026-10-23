@@ -1,0 +1,47 @@
+# Python bytecode, virtual environments, and test/lint caches
+__pycache__/
+*.py[cod]
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local secrets and environment-specific configuration
+.env
+.env.*
+!.env.example
+
+# Local databases and generated logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Inspection evidence and user-provided datasets
+**/evidence/
+data/evidence/
+data/raw/
+data/processed/
+datasets/
+
+# Downloaded/trained model artifacts
+*.pt
+*.pth
+*.onnx
+*.engine
+*.plan
+
+# Frontend dependencies/build outputs
+node_modules/
+dist/
+coverage/
+
+# OS metadata
+.DS_Store
+Thumbs.db
