@@ -58,6 +58,10 @@ IndustrialVision AI is a FastAPI-based platform for real-time industrial defect 
 
 The lifecycle/persistence service is covered by SQLite-backed unit tests, but an authenticated image/video REST inspection endpoint and a compatible production detection model are not yet implemented or validated.
 
+## Runtime Configuration
+
+The canonical settings are defined in `backend/app/core/config.py`; `backend/app/config.py` remains as a compatibility re-export. Copy `.env.example` to `backend/.env` and adjust values for the deployment. Database URLs use synchronous SQLAlchemy drivers: SQLite is intended for local development and PostgreSQL is required when `APP_ENV=production`. Production configuration rejects the development JWT secret, debug mode, wildcard CORS, and non-PostgreSQL database URLs. CORS origins are comma-separated.
+
 ## Quick Start
 
 ```bash

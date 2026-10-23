@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import threading
 from contextlib import closing
 from socket import socket, AF_INET, SOCK_STREAM
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from app.config import settings
+from app.core.config import settings
 from app.db.session import SessionLocal, engine
 from app.core.logging_utils import redact
 
@@ -42,7 +41,7 @@ def health():
             {
                 "status": "ok" if (db_status == "ok" and _port_open(settings.HOST, settings.PORT)) else "degraded",
                 "environment": settings.APP_ENV,
-                "version": "0.1.0-mvp",
+                "version": settings.VERSION,
                 "database": db_status,
                 "camera_connections": 0,
             }

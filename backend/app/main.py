@@ -59,7 +59,7 @@ def create_app() -> FastAPI:
     _app = FastAPI(
         title=settings.PROJECT_NAME,
         description="IndustrialVision AI: Real-time defect detection & quality inspection",
-        version="0.1.0",
+        version=settings.VERSION,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
@@ -68,7 +68,7 @@ def create_app() -> FastAPI:
     # CORS
     _app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -103,7 +103,7 @@ def create_app() -> FastAPI:
     def root():
         return {
             "project": settings.PROJECT_NAME,
-            "version": "0.1.0",
+            "version": settings.VERSION,
             "status": "operational",
             "endpoints": {
                 "auth": "/auth/login",

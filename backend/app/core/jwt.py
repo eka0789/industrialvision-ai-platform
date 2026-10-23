@@ -6,7 +6,7 @@ import time
 
 import jwt as _jwt
 
-from app.config import settings
+from app.core.config import settings
 
 ALGORITHM = settings.JWT_ALGORITHM
 

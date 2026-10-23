@@ -12,7 +12,7 @@ _PROJECT_ROOT = os.path.dirname(_HERE)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from app.config import settings  # noqa: E402
+from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from alembic import context  # noqa: E402
 
