@@ -8,9 +8,9 @@ IndustrialVision AI is a FastAPI-based platform for real-time industrial defect 
 
 - **Real-time camera streaming** with WebSocket integration
 - **ONNX model inference** for defect detection
-- **Inspection session management** with PASS/FAIL/ERROR decisions
-- **Anomaly scoring** based on detection confidence
-- **Evidence file storage** for inspection records
+- Inspection lifecycle persistence with fail-safe PASS/FAIL/REVIEW/ERROR decisions
+- Optional anomaly-score rules that only consume scores returned by an anomaly model
+- Evidence file storage for inspection records
 - **Role-based access control** (admin/operator/viewer)
 
 ## Architecture
@@ -33,7 +33,8 @@ IndustrialVision AI is a FastAPI-based platform for real-time industrial defect 
 - ✅ Real-time camera streaming via WebSocket
 - ✅ ONNX object detection inference pipeline
 - ✅ Inspection session lifecycle (start → process → end)
-- ✅ Anomaly scoring and PASS/FAIL decisions
+- ✅ Configurable decision policy: configured defect detections can FAIL; missing policies return REVIEW; inference errors return ERROR
+- ⚠️ PatchCore/PaDiM inference is not implemented; detection confidence is never treated as an anomaly score
 - ✅ JWT authentication with PBKDF2 password hashing
 - ✅ Role-based access control (3 roles: admin, operator, viewer)
 
@@ -50,6 +51,12 @@ IndustrialVision AI is a FastAPI-based platform for real-time industrial defect 
 - 12+ core tables (users, roles, cameras, production_lines, model_versions, inspections, detections, anomaly_results, inspectionsessions, etc.)
 - Alembic migrations managed
 - Seed data script available
+
+### Inspection decision policy
+
+`ModelVersion.config_json` may define `reject_labels` (list of defect class names), `detection_confidence` (0–1), and optionally `anomaly_threshold` plus `review_band`. A successful frame with a configured rejection policy and no matching defects may PASS. If neither defect labels nor an anomaly threshold is configured, the result is REVIEW rather than an implicit PASS. An inference exception is persisted as ERROR. Anomaly thresholds require a real anomaly-model score; the current ONNX detector does not provide PatchCore/PaDiM scores.
+
+The lifecycle/persistence service is covered by SQLite-backed unit tests, but an authenticated image/video REST inspection endpoint and a compatible production detection model are not yet implemented or validated.
 
 ## Quick Start
 

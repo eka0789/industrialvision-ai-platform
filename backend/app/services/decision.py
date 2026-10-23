@@ -64,6 +64,8 @@ def decide_inspection(
         }
 
     threshold = active_rules.anomaly_threshold
+    if not active_rules.reject_labels and threshold is None:
+        return {"decision": "REVIEW", "reason": "No defect rejection policy is configured", "error": None}
     if threshold is not None:
         if anomaly_score is None:
             return {"decision": "REVIEW", "reason": "Configured anomaly model returned no score", "error": None}

@@ -34,10 +34,14 @@ class DecisionTests(unittest.TestCase):
         result = decide_inspection([], rules=DecisionRules(anomaly_threshold=0.5))
         self.assertEqual(result["decision"], "REVIEW")
 
-    def test_unconfigured_anomaly_score_is_not_misrepresented_as_probability(self):
+    def test_unconfigured_anomaly_score_does_not_create_a_policy(self):
         result = decide_inspection([], 0.99)
-        self.assertEqual(result["decision"], "PASS")
-        self.assertIn("configured", result["reason"])
+        self.assertEqual(result["decision"], "REVIEW")
+        self.assertIn("policy", result["reason"])
+
+    def test_missing_rejection_policy_requires_review(self):
+        result = decide_inspection([])
+        self.assertEqual(result["decision"], "REVIEW")
 
     def test_reject_detection_below_confidence_does_not_fail(self):
         result = decide_inspection(
