@@ -11,6 +11,7 @@ from app.api.v1.routers.auth import router as auth_router
 from app.api.v1.routers.cameras.camera import router as camera_router
 from app.api.v1.routers.health import router as health_router
 from app.api.v1.routers.inspections.inspection import router as inspections_router
+from app.api.v1.routers.models import router as models_router
 from app.api.v1.routers.websockets import router as websockets_router
 from app.core.config import settings
 
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     _app.include_router(camera_router)
     _app.include_router(admin_router)
     _app.include_router(inspections_router)
+    _app.include_router(models_router)
     _app.include_router(websockets_router)
 
     @_app.get("/", tags=["root"])
@@ -54,6 +56,7 @@ def create_app() -> FastAPI:
                 "health": "/health",
                 "cameras": "/cameras",
                 "inspections": "/inspections",
+                "models": "/models",
             },
         }
 

@@ -28,7 +28,8 @@ htmlcov/
 data/evidence/
 data/raw/
 data/processed/
-datasets/
+data/runs/
+/datasets/
 
 # Downloaded/trained model artifacts
 *.pt
