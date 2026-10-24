@@ -9,12 +9,12 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ## Current verified baseline
 
-- The project has a partial FastAPI/SQLAlchemy backend, Alembic files, basic auth and camera API code, ONNX inference code, and a SQLite database. Several paths/configurations are inconsistent and not all routers/features are wired into the app.
-- `backend/app/services/decision.py` implements fail-safe PASS/FAIL/REVIEW/ERROR decisions. Decisions without a configured defect/anomaly policy return REVIEW.
-- `backend/app/services/inspection_manager.py` now persists inference results and decision reasons; errors are recorded as ERROR. A successful PASS requires a configured rejection or anomaly policy.
-- `python -m unittest discover -s tests -v` from `backend/` passed 57 tests, including configuration, auth/RBAC, SQLite migration upgrade/downgrade, inference contract/adapter mocks, image API, history/detail, evidence storage, decision, and persistence tests. `python -m compileall -q app migrations tests` passed.
-- The image API and OpenAPI routes are wired; image inference persists actual adapter results, while unavailable model configuration is recorded as ERROR. YOLO/ONNX adapter behavior is unit-tested, but no actual industrial model/dataset or Ultralytics runtime has been validated. PostgreSQL runtime, video endpoint, frontend, and Docker have not been verified.
-- The four reference repositories’ public pages and READMEs were reviewed; their source code, dependency lockfiles, and model/data artifacts were not audited. No reference code has been copied.
+- The project has a FastAPI/SQLAlchemy backend with Alembic migrations, JWT auth + RBAC, camera CRUD + session APIs, video/camera source abstraction, bounded capture worker with reconnect/backoff/metrics, video-file inspection with codec validation and frame aggregation, WebSocket endpoints with auth, anomaly detector interface (score/map/threshold, non-probability), PatchCore/PaDiM adapters with compatibility gating, anomaly evaluation (image/pixel AUROC, AUPRC, F1, PRO).
+- Decision engine implements fail-safe PASS/FAIL/REVIEW/ERROR. Decisions without configured defect/anomaly policy return REVIEW.
+- Inspection manager persists inference results and decision reasons; errors recorded as ERROR. PASS requires configured rejection or anomaly policy.
+- `python -m unittest discover -s tests -v` from `backend/` passed 89 tests: config, auth/RBAC, SQLite migrations, inference contracts, YOLO/ONNX adapters, image API, history/detail, evidence storage, decision persistence, camera CRUD/sessions/RBAC, video/camera sources, capture worker, anomaly interfaces/adapters/evaluation, WebSocket auth. `python -m compileall -q app migrations tests` passed.
+- Image API and OpenAPI routes wired; inference persists actual adapter results. Unavailable model config = ERROR. YOLO/ONNX adapter behavior unit-tested; no industrial model/dataset or Ultralytics runtime validated. PostgreSQL runtime, frontend, Docker not verified.
+- Four reference repositories’ public pages/READMEs reviewed; source/lockfiles/artifacts not audited. No reference code copied.
 
 ## Task board
 
@@ -39,17 +39,17 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ### Phase 2 — Video and cameras
 
-- [ ] **T10 — Implement camera source abstraction.** Support simulated/video-file source first, then webcam and RTSP. Clearly distinguish source types and redact RTSP credentials from API output/logs/errors.
-- [ ] **T11 — Implement bounded capture worker.** Use bounded/latest-frame buffering, read timeout, no-frame detection, exponential-backoff reconnect, connection limits, metrics, and graceful shutdown. Cover disconnect/reconnect with mocked sources.
-- [ ] **T12 — Add video-file inspection.** Validate codec/container and upload limits; process frames at configurable intervals; aggregate per-frame results without losing timestamps; persist evidence and report dropped frames/FPS/latency.
-- [ ] **T13 — Add camera administration and session APIs.** Protect camera create/update/delete/start/stop with RBAC; persist status, last error, resolution, FPS, and last inspection. Never return stored camera secrets.
+- [x] **T10 — Implement camera source abstraction.** Support simulated/video-file source first, then webcam and RTSP. Clearly distinguish source types and redact RTSP credentials from API output/logs/errors.
+- [x] **T11 — Implement bounded capture worker.** Use bounded/latest-frame buffering, read timeout, no-frame detection, exponential-backoff reconnect, connection limits, metrics, and graceful shutdown. Cover disconnect/reconnect with mocked sources.
+- [x] **T12 — Add video-file inspection.** Validate codec/container and upload limits; process frames at configurable intervals; aggregate per-frame results without losing timestamps; persist evidence and report dropped frames/FPS/latency.
+- [x] **T13 — Add camera administration and session APIs.** Protect camera create/update/delete/start/stop with RBAC; persist status, last error, resolution, FPS, and last inspection. Never return stored camera secrets.
 
 ### Phase 3 — Real-time events and anomaly detection
 
-- [ ] **T14 — Add WebSocket inspection events.** Authenticate/authorize sockets, send metadata and detection results rather than every full-resolution frame, handle disconnects, and test reconnect/fallback behavior.
-- [ ] **T15 — Add anomaly detector interface.** Keep anomaly detection distinct from object detection. Define score/map contracts and threshold metadata; uncalibrated scores must not be called probabilities.
-- [ ] **T16 — Add PatchCore/PaDiM adapter only after compatibility checks.** Isolate optional dependencies, document supported Python/Torch versions, train memory bank/distribution from normal samples, and gate unsupported runtime environments cleanly.
-- [ ] **T17 — Add anomaly evaluation.** Implement image/pixel AUROC and localization metrics only with compatible ground truth; test metric functions on known/synthetic fixtures and document dataset license restrictions.
+- [x] **T14 — Add WebSocket inspection events.** Authenticate/authorize sockets, send metadata and detection results rather than every full-resolution frame, handle disconnects, and test reconnect/fallback behavior.
+- [x] **T15 — Add anomaly detector interface.** Keep anomaly detection distinct from object detection. Define score/map contracts and threshold metadata; uncalibrated scores must not be called probabilities.
+- [x] **T16 — Add PatchCore/PaDiM adapter only after compatibility checks.** Isolate optional dependencies, document supported Python/Torch versions, train memory bank/distribution from normal samples, and gate unsupported runtime environments cleanly.
+- [x] **T17 — Add anomaly evaluation.** Implement image/pixel AUROC and localization metrics only with compatible ground truth; test metric functions on known/synthetic fixtures and document dataset license restrictions.
 
 ### Phase 4 — Dataset and model lifecycle
 
