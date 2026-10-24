@@ -1,8 +1,8 @@
 # IndustrialVision AI — Implementation Backlog
 
 **Status:** In progress — MVP is not production-ready
-**Workspace checked:** 2026-10-23
-**Runtime checked:** Python 3.14.2, Node 24.13.0. Docker and `pytest` are unavailable in the current environment.
+**Workspace checked:** 2026-10-24
+**Runtime checked:** Python 3.12.3 (dependencies installed into workspace `.venv`; system `site-packages` is root-owned, a workspace `.pth` links the preinstalled numpy/OpenCV), Node 24.13.0. Docker and `pytest` are unavailable in the current environment.
 **GitHub:** `https://github.com/eka0789/industrialvision-ai-platform`
 
 This backlog breaks the master prompt into small, testable tasks. Each item should be implemented in a focused change, validated, documented, and only then marked done. “Done” means verified in this workspace, not inferred from code or a demo.
@@ -15,6 +15,9 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 - `python -m unittest discover -s tests -v` from `backend/` passed 89 tests: config, auth/RBAC, SQLite migrations, inference contracts, YOLO/ONNX adapters, image API, history/detail, evidence storage, decision persistence, camera CRUD/sessions/RBAC, video/camera sources, capture worker, anomaly interfaces/adapters/evaluation, WebSocket auth. `python -m compileall -q app migrations tests` passed.
 - Image API and OpenAPI routes wired; inference persists actual adapter results. Unavailable model config = ERROR. YOLO/ONNX adapter behavior unit-tested; no industrial model/dataset or Ultralytics runtime validated. PostgreSQL runtime, frontend, Docker not verified.
 - Four reference repositories’ public pages/READMEs reviewed; source/lockfiles/artifacts not audited. No reference code copied.
+- **Re-verified 2026-10-24 (Python 3.12.3):** `python -m unittest discover -s tests` from `backend/` passed **137 tests** (89 baseline + 48 Phase 4) and `python -m compileall -q app migrations tests` passed. Baseline repair included: `EvidenceStorage.resolve` now checks containment/existence without `strict=True`, so path traversal raises `ValueError` (instead of leaking `FileNotFoundError` on Python 3.12).
+- **Phase 4 verified:** dataset validation/split/leakage tooling with a machine-readable JSON report (`python -m app.datasets.cli`, 16 tests); dataset setup guide sourced from provider pages (`docs/DATASETS.md`); model registry metadata API under `/models` with migration `a00000000003` (upgrade/downgrade/re-upgrade verified), RBAC, and MODEL_ROOT-only artifact references — absolute paths, traversal, missing files, and unknown extensions are rejected (10 tests); reproducible training/evaluation entry points (`app.training.train`, `app.training.evaluate`) that write metrics only from a completed run on an identified, hashed dataset split (22 tests incl. subprocess CLI runs).
+- **Phase 4 not validated:** no real public dataset was downloaded; no Ultralytics training ran (the missing-runtime path is tested: run marked failed, no metrics file); PostgreSQL, real model inference, and deployment remain unvalidated.
 
 ## Task board
 
@@ -53,10 +56,10 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ### Phase 4 — Dataset and model lifecycle
 
-- [ ] **T18 — Dataset validation and split tooling.** Validate image/label pairing, class IDs, bounding boxes/masks, empty/corrupt files, deterministic split, and leakage by source identity. Produce a machine-readable report.
-- [ ] **T19 — Dataset setup guide.** Document verified public sources, license/use restrictions, download steps, expected layout, and checksums where available. Do not redistribute restricted datasets or label synthetic assets as industrial data.
-- [ ] **T20 — Model registry and metadata API.** Track framework, model path/artifact ID, task, classes, version, thresholds, training data provenance, license, and active status. Never permit arbitrary filesystem paths from API input.
-- [ ] **T21 — Training/evaluation scripts.** Provide reproducible seed/config/checkpoints/logs for supported task(s); report metrics only from a completed run on an identified dataset split.
+- [x] **T18 — Dataset validation and split tooling.** `app.datasets` validates image/label pairing, class IDs, detection boxes and mask polygons, empty/corrupt/undecodable files, duplicate stems, and orphan labels; performs a deterministic split grouped by source identity (content SHA-256 + filename stem) so leakage cannot occur by construction, and detects identity leakage across pre-split directories. Emits a machine-readable JSON report with structured issues, split files, per-file checksums, and a stable dataset fingerprint. Verified by 16 tests in `tests/test_dataset_validation.py` (incl. CLI exit codes 0/1/2).
+- [x] **T19 — Dataset setup guide.** `docs/DATASETS.md` documents provider pages read on 2026-10-24: MVTec AD / LOCO and KolektorSDD (CC BY-NC-SA 4.0, commercial restricted), DAGM 2007 Zenodo record (CC BY 4.0, provider MD5 checksums), NEU-DET and GC10-DET (**no license published — treat as uncleared**), plus download steps, expected YOLO-style layout, and local checksum recording. No dataset or annotation file is redistributed in the repo; tests use synthetic fixtures explicitly labeled synthetic.
+- [x] **T20 — Model registry and metadata API.** `/models` list/detail/create/patch/activate/deactivate plus `/models/{id}/evaluations`. Tracks framework, artifact reference with **server-computed SHA-256 checksum and artifact ID**, task, classes, version, thresholds, training-data provenance, license, and active status (at most one active model per task type). Writes require `admin`/`ai_engineer`; evaluation records must be a completed run with an identified split. API input is only a relative artifact reference resolved strictly under MODEL_ROOT — absolute paths, `..` traversal, missing files, and extensions outside `.onnx/.pt/.pth` are rejected with 422 before any DB write. Migration `a00000000003` verified upgrade → downgrade → re-upgrade. 10 tests in `tests/test_model_registry_api.py`.
+- [x] **T21 — Training/evaluation scripts.** `app.training.train` requires an integer seed, a passing dataset validation report (root must match), and an identified split; records config snapshot, environment versions, log, and checkpoints in one run directory; sets Python/NumPy/Torch seeds; and refuses to finish unless a checkpoint **and** metrics exist. Missing Ultralytics (as here) → run marked `failed` with reason, exit 2, **no metrics file**. `app.training.evaluate` refuses any run that is not `completed` (exit 3), requires ground truth for every image in a hashed split file (exit 4), and writes an evaluation report binding metrics to the run's dataset identity + split SHA-256. `TrainingRun` enforces lifecycle transitions and a `publish_metrics()` gate; detection metrics (precision/recall/F1/per-class AP/mAP) are pure Python with known-value fixtures. 22 tests in `tests/test_training_runs.py`, incl. subprocess runs of both CLIs. Actual Ultralytics training and real-data evaluation remain unvalidated.
 
 ### Phase 5 — Metrics and optimization
 
@@ -84,7 +87,7 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ## Recommended execution order
 
-Work one task at a time, keeping changes small and tested. Phase 1 tasks T02, T03, and T05–T09 have passing local SQLite/unit/API tests. The immediate next task is **T10 — Implement camera source abstraction**, starting with video-file/simulated input. Keep PostgreSQL runtime, actual model inference, and deployment validation as explicit gates.
+Work one task at a time, keeping changes small and tested. Phases 1–4 (T01–T21) are implemented and locally verified: 137 tests pass on SQLite with mocked inference. The immediate next task is **T22 — Runtime metrics collector** (Phase 5). Keep PostgreSQL runtime, actual model inference/training on a real dataset, and deployment validation as explicit gates.
 
 ## Cross-cutting definition of done for every task
 
@@ -108,9 +111,9 @@ README-level review only; the reference source code and dependency lockfiles hav
 
 ## Environment and risks
 
-- Python 3.14.2 and Node 24.13.0 are installed. Docker is not installed in the current environment; Docker deployment cannot yet be executed here.
-- `pytest` is not installed. Current 25 tests run via standard-library `unittest`; select/pin a test runner as part of T34.
+- Python 3.12.3 (this workspace) and Node 24.13.0 are installed. Dependencies live in the workspace `.venv` (system site-packages is root-owned; a `.pth` file links the preinstalled numpy/OpenCV). Docker is not installed; Docker deployment cannot yet be executed here.
+- `pytest` is not installed. Tests run via standard-library `unittest` (137 passed, 2026-10-24); select/pin a test runner as part of T34.
 - Current SQLAlchemy default is SQLite. PostgreSQL operation is not yet validated.
-- No industrial model, dataset, physical camera, or GPU has been validated in this workspace.
-- Ultralytics/Torch/Anomalib compatibility with Python 3.14 is unknown. Keep optional dependencies isolated until verified.
+- No industrial model, dataset, physical camera, or GPU has been validated in this workspace. No public dataset has been downloaded here; `docs/DATASETS.md` documents sources and licenses only.
+- Ultralytics/Torch/Anomalib compatibility with Python 3.12 is unknown; the training entry point treats Ultralytics as optional and its missing-runtime path is tested (failed run, no metrics). Keep optional dependencies isolated until verified.
 - Model configuration must include a task-appropriate rejection policy before a successful detection can produce PASS. No anomaly score is derived from object-detection confidence.

@@ -124,6 +124,15 @@ class ModelVersion(Base):
     config_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="unloaded", nullable=False)
+    # Registry metadata (T20)
+    task_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    artifact_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    license: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    classes_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    thresholds_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    provenance_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), default=now, nullable=False

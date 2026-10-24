@@ -49,7 +49,7 @@ class EvidenceStorage:
         return destination.relative_to(self.root).as_posix()
 
     def resolve(self, evidence_path: str) -> Path:
-        candidate = (self.root / evidence_path).resolve(strict=True)
+        candidate = (self.root / evidence_path).resolve(strict=False)
         if not candidate.is_relative_to(self.root) or not candidate.is_file():
             raise ValueError("Evidence path is invalid")
         return candidate
