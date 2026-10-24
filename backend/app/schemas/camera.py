@@ -79,3 +79,53 @@ class CameraOut(CameraListOut):
                 host = f"{host}:{parsed.port}"
             return parsed._replace(netloc=f"[REDACTED]@{host}").geturl()
         return value
+
+
+# Session schemas
+class SessionBase(BaseModel):
+    camera_id: int = Field(gt=0)
+    model_version_id: int = Field(gt=0)
+
+
+class SessionCreate(SessionBase):
+    pass
+
+
+class SessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    camera_id: int
+    model_version_id: int
+    status: str
+    start_time: datetime
+    end_time: datetime | None = None
+
+
+class SessionStatusOut(BaseModel):
+    session_id: int
+    camera_id: int
+    model_version_id: int
+    status: str
+    start_time: str | None = None
+    end_time: str | None = None
+    metrics: dict | None = None
+
+
+class VideoInspectionRequest(BaseModel):
+    camera_id: int = Field(gt=0)
+    file_path: str = Field(min_length=1)
+    frame_interval: int = Field(default=1, ge=1, le=300)
+    max_frames: int | None = Field(default=None, ge=1)
+
+
+class VideoInspectionResultOut(BaseModel):
+    camera_id: int
+    total_frames: int
+    processed_frames: int
+    dropped_frames: int
+    fps: float
+    avg_latency_ms: float
+    duration_sec: float
+    detections: list[dict]
+    errors: list[str]

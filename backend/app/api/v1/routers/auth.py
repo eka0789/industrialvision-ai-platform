@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
@@ -48,7 +49,7 @@ def me(user: User = Depends(get_current_user)) -> UserRead:
     return UserRead(id=user.id, username=user.username, role=user.role.name, is_active=user.is_active)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout() -> None:
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def logout():
     """JWT access tokens are stateless; clients discard the token on logout."""
-    return None
+    pass
