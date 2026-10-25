@@ -56,7 +56,7 @@ python -m compileall -q app migrations tests
 python -c "from app.main import app; print(app.title, app.version)"
 ```
 
-The first command currently runs 174 tests (2026-10-24) without a camera, GPU, or real model. `pytest` is not installed in the checked environment. Tests use isolated SQLite databases and mocked model inference; they do **not** prove that inference works on an industrial dataset. SQLite migration upgrade/downgrade is tested. PostgreSQL is not available in the checked environment.
+The first command currently runs 205 tests (2026-10-24) without a camera, GPU, or real model. `pytest` is not installed in the checked environment. Tests use isolated SQLite databases and mocked model inference; they do **not** prove that inference works on an industrial dataset. SQLite migration upgrade/downgrade is tested. PostgreSQL is not available in the checked environment.
 
 ## API status
 
@@ -68,6 +68,7 @@ OpenAPI is exposed at `/api/openapi.json`. Verified route paths include `POST /a
 backend/
 ├── app/
 │   ├── api/          # Auth, camera, admin, health, inspection, and model routers
+│   ├── benchmark/    # Reproducible inference benchmark runner and CLI (T23)
 │   ├── core/         # Canonical settings, security, JWT helpers
 │   ├── datasets/     # Dataset validation, split, and leakage tooling (T18)
 │   ├── db/           # SQLAlchemy models and session factory
@@ -78,6 +79,7 @@ backend/
 ├── migrations/       # Alembic migration environment and revisions
 └── tests/            # unittest configuration, auth, API, migration, and service tests
 .env.example          # Secret-free environment template
+docs/BENCHMARK.md     # Benchmark protocol and report template (T23)
 docs/DATASETS.md      # Dataset sources, licenses, layout, checksums (T19)
 PLANNING.md           # Implementation backlog and acceptance criteria
 ```
@@ -92,4 +94,4 @@ The reference projects and their public README/license summaries are listed in `
 
 ## Next work
 
-See `PLANNING.md` for the implementation backlog. Phases 1–5 are implemented and locally tested, including dataset validation tooling, the dataset setup guide, the model registry API, reproducible training/evaluation entry points, and the runtime metrics collector (latency/FPS windows, CPU-RAM-GPU sampling, frame drops, reconnects, inference errors with explicit units and hardware metadata — 174 tests). Next is T23 (benchmark script/report template); PostgreSQL, real model inference/training, and deployment remain unvalidated.
+See `PLANNING.md` for the implementation backlog. Phases 1–5 are implemented and locally tested, including dataset validation tooling, the model registry API, reproducible training/evaluation entry points, the runtime metrics collector, and the benchmark protocol with its report template (identical-input/warmup rules, sample-count-gated P50/P95/P99, no fabricated numbers — 205 tests). Next is T24 (ONNX export and parity test); PostgreSQL, real model inference/training, and deployment remain unvalidated.

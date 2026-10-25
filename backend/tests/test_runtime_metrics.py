@@ -26,7 +26,7 @@ from app.services.runtime_metrics import (
     UNITS,
     ResourceSampler,
     RuntimeMetricsCollector,
-    _collect_hardware,
+    collect_hardware,
     get_runtime_metrics,
     reset_runtime_metrics,
 )
@@ -428,7 +428,7 @@ class ResourceSamplerTests(unittest.TestCase):
     @unittest.skipUnless(PROCFS, "requires Linux /proc")
     def test_hardware_falls_back_to_procfs(self):
         with patch("app.services.runtime_metrics._import_psutil", return_value=None):
-            hardware = _collect_hardware()
+            hardware = collect_hardware()
         self.assertIsInstance(hardware["total_ram_bytes"], int)
         self.assertGreater(hardware["total_ram_bytes"], 0)
         self.assertIsInstance(hardware["cpu_cores_physical"], int)

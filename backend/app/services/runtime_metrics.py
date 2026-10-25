@@ -274,7 +274,7 @@ def gpu_snapshot() -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _collect_hardware() -> dict[str, Any]:
+def collect_hardware() -> dict[str, Any]:
     """Static hardware/ runtime metadata, preferring psutil then /proc."""
     physical_cores: int | None = None
     total_ram: int | None = None
@@ -307,7 +307,7 @@ def _iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
 
 
-def _percentile(sorted_samples: list[float], quantile: float) -> float | None:
+def percentile(sorted_samples: list[float], quantile: float) -> float | None:
     """Linear-interpolated percentile over an ascending sample list."""
     if not sorted_samples:
         return None
@@ -337,9 +337,9 @@ def _latency_stats(samples: list[float]) -> dict[str, float | int | None]:
         "last": float(samples[-1]),
     }
     if len(ordered) >= MIN_PERCENTILE_SAMPLES:
-        stats["p50"] = _percentile(ordered, 0.50)
-        stats["p95"] = _percentile(ordered, 0.95)
-        stats["p99"] = _percentile(ordered, 0.99)
+        stats["p50"] = percentile(ordered, 0.50)
+        stats["p95"] = percentile(ordered, 0.95)
+        stats["p99"] = percentile(ordered, 0.99)
     else:
         stats["p50"] = None
         stats["p95"] = None
@@ -498,7 +498,7 @@ class RuntimeMetricsCollector:
         self._recent_error_limit = recent_error_limit
         self._lock = threading.Lock()
         self._resources = ResourceSampler(resource_backend, clock=clock)
-        self._hardware = _collect_hardware()
+        self._hardware = collect_hardware()
         self._latency: dict[str, deque[float]] = {
             stage: deque(maxlen=latency_window_samples) for stage in LATENCY_STAGES
         }
