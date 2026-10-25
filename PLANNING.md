@@ -72,20 +72,20 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ### Phase 6 — Frontend operator/admin experience
 
-- [ ] **T26 — Frontend foundation.** Create React + TypeScript + Vite app, lint/typecheck/build scripts, API client, auth/session handling, and responsive industrial visual system.
-- [ ] **T27 — Login and role-aware navigation.** Integrate real auth and hide/deny unauthorized actions based on roles; backend remains the authorization source of truth.
-- [ ] **T28 — Overview dashboard.** Fetch real aggregate history/metrics and show explicit empty/loading/error states; no hardcoded production statistics.
-- [ ] **T29 — Live inspection view.** Show source type, video/frame, browser-side overlays, status, timestamp, model version, FPS/latency, WebSocket state, and fallback/reconnect UX.
-- [ ] **T30 — Camera, inspection history, and detail screens.** Use backend data with filter/pagination, evidence viewing, decision rationale, and disconnected/error states.
-- [ ] **T31 — Model/evaluation, health, and user administration screens.** Wire to authorized APIs; clearly label unavailable metrics and unvalidated models.
+- [x] **T26 — Frontend foundation.** Create React + TypeScript + Vite app, lint/typecheck/build scripts, API client, auth/session handling, and responsive industrial visual system.
+- [x] **T27 — Login and role-aware navigation.** Integrate real auth and hide/deny unauthorized actions based on roles; backend remains the authorization source of truth.
+- [x] **T28 — Overview dashboard.** Fetch real aggregate history/metrics and show explicit empty/loading/error states; no hardcoded production statistics.
+- [x] **T29 — Live inspection view.** Show source type, video/frame, browser-side overlays, status, timestamp, model version, FPS/latency, WebSocket state, and fallback/reconnect UX.
+- [x] **T30 — Camera, inspection history, and detail screens.** Use backend data with filter/pagination, evidence viewing, decision rationale, and disconnected/error states.
+- [x] **T31 — Model/evaluation, health, and user administration screens.** Wire to authorized APIs; clearly label unavailable metrics and unvalidated models.
 
 ### Phase 7 — Security, deployment, CI, and release
 
-- [ ] **T32 — Security hardening.** Validate uploads and size limits, redact secrets/RTSP credentials, configure explicit CORS, audit sensitive actions, enforce timeouts/connection limits, and check path handling.
-- [ ] **T33 — Docker Compose deployment.** Add non-root backend/frontend containers, PostgreSQL, health checks, persistent DB/evidence volumes, environment-based secrets, and no public DB port. Run `docker compose config` and integration tests when Docker is available.
-- [ ] **T34 — CI workflow.** Run supported Python lint/format/tests, migration checks, frontend lint/typecheck/build, and dependency checks; pin versions only after compatibility is verified.
-- [ ] **T35 — Operations documentation.** Setup, migrations, backup/restore, RTSP-in-Docker caveats, deployment, security notes, model/dataset provenance, known limitations, and demo steps.
-- [ ] **T36 — MVP release gate.** Verify image + sample-video path end-to-end with a real available model; persist to PostgreSQL; validate API and frontend; run tests and runtime benchmark; review licenses and secrets. Explicitly list any unmet criteria; do not call it production-ready otherwise.
+- [x] **T32 — Security hardening.** Validate uploads and size limits, redact secrets/RTSP credentials, configure explicit CORS, audit sensitive actions, enforce timeouts/connection limits, and check path handling.
+- [x] **T33 — Docker Compose deployment.** Add non-root backend/frontend containers, PostgreSQL, health checks, persistent DB/evidence volumes, environment-based secrets, and no public DB port. Run `docker compose config` and integration tests when Docker is available.
+- [x] **T34 — CI workflow.** Run supported Python lint/format/tests, migration checks, frontend lint/typecheck/build, and dependency checks; pin versions only after compatibility is verified.
+- [x] **T35 — Operations documentation.** Setup, migrations, backup/restore, RTSP-in-Docker caveats, deployment, security notes, model/dataset provenance, known limitations, and demo steps.
+- [x] **T36 — MVP release gate.** Verify image + sample-video path end-to-end with a real available model; persist to PostgreSQL; validate API and frontend; run tests and runtime benchmark; review licenses and secrets. Explicitly list any unmet criteria; do not call it production-ready otherwise.
 
 ## Recommended execution order
 

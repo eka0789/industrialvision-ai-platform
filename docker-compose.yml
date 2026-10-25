@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: industrialvision-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-industrialvision}
+      POSTGRES_USER: ${POSTGRES_USER:-iv_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD environment variable must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Security: No public port exposed. Only reachable within internal bridge network
+    networks:
+      - internal-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iv_user} -d ${POSTGRES_DB:-industrialvision}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: industrialvision-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      HOST: 0.0.0.0
+      PORT: 8000
+      JWT_SECRET: ${JWT_SECRET:?Error: JWT_SECRET environment variable must be set (minimum 32 characters)}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-industrialvision}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      EVIDENCE_ROOT: /app/data/evidence
+      MODEL_ROOT: /app/models
+    volumes:
+      - evidence_data:/app/data/evidence
+      - model_data:/app/models
+    networks:
+      - internal-net
+      - frontend-net
+    ports:
+      # Internal API direct access if needed, or bound to localhost
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: industrialvision-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - frontend-net
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
+    name: industrialvision_postgres_data
+  evidence_data:
+    name: industrialvision_evidence_data
+  model_data:
+    name: industrialvision_model_data
+
+networks:
+  internal-net:
+    internal: true
+    driver: bridge
+  frontend-net:
+    driver: bridge
