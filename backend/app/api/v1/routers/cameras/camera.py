@@ -279,4 +279,5 @@ def inspect_video(
         duration_sec=result.duration_sec,
         detections=result.detections,
         errors=result.errors,
+        metrics=result.metrics,
     )

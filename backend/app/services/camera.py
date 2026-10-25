@@ -17,6 +17,7 @@ from app.db.session import SessionLocal
 from app.services.camera_sources import CameraSource, create_camera_source, redact_rtsp_url
 from app.services.capture_worker import CaptureWorker, CaptureMetrics
 from app.services.inference import get_inference, predict_frame
+from app.services.runtime_metrics import get_runtime_metrics
 from app.services.video_inspection import VideoInspector, VideoInspectionResult
 
 
@@ -152,6 +153,7 @@ class CameraStreamer:
             no_frame_timeout=5.0,
             max_reconnects=5,
             backoff_base=0.2,
+            collector=get_runtime_metrics(),
         )
         self.worker.start()
         return self.worker

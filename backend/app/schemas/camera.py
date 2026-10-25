@@ -129,3 +129,6 @@ class VideoInspectionResultOut(BaseModel):
     duration_sec: float
     detections: list[dict]
     errors: list[str]
+    # Runtime metrics snapshot (T22): latency windows, FPS, resource usage,
+    # counters, unit registry, and hardware metadata.
+    metrics: dict | None = None

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,7 @@ from fastapi import WebSocket
 from app.db.models import Camera, Inspection, InspectionSession, ModelVersion
 from app.db.session import SessionLocal
 from app.services.decision import DecisionRules, decide_inspection
+from app.services.runtime_metrics import get_runtime_metrics
 
 
 def predict_frame(frame: Any) -> dict[str, Any]:
@@ -132,15 +134,17 @@ async def process_camera_frame(
         if inspection is None:
             return {"decision": "ERROR", "reason": "Inspection not found", "error": "not_found"}
 
+        inference_started = False
         try:
             model = db.get(ModelVersion, inspection.session.model_version_id)
             rules = _rules_for_model(model)
+            inference_started = True
             result = predict_frame(frame)
             detections = result.get("detections")
             if not isinstance(detections, list):
                 raise ValueError("Inference returned an invalid detections result")
             latency_ms = float(result["latency_ms"])
-            if latency_ms < 0:
+            if latency_ms < 0 or not math.isfinite(latency_ms):
                 raise ValueError("Inference returned an invalid latency")
             decision_result = decide_inspection(
                 detections,
@@ -154,6 +158,8 @@ async def process_camera_frame(
             inspection.error_message = decision_result["error"]
             inspection.metadata_json = {"decision_reason": decision_result["reason"]}
             db.commit()
+            if inference_started:
+                get_runtime_metrics().record_inference_error(str(exc))
             response = {**decision_result, "inspection_id": inspection_id, "detections": []}
         else:
             for detection in detections:
@@ -189,6 +195,7 @@ async def process_camera_frame(
             )
             inspection.metadata_json = {"decision_reason": decision_result["reason"]}
             db.commit()
+            get_runtime_metrics().record_latency("inference", latency_ms)
             response = {
                 **decision_result,
                 "inspection_id": inspection_id,

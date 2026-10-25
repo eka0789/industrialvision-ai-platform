@@ -11,6 +11,7 @@ from typing import Optional
 import numpy as np
 
 from app.services.camera_sources import CameraSource
+from app.services.runtime_metrics import RuntimeMetricsCollector
 
 
 @dataclass
@@ -46,8 +47,10 @@ class CaptureWorker:
         max_reconnects: int = 5,
         backoff_base: float = 0.2,
         connection_limit: int = 16,
+        collector: RuntimeMetricsCollector | None = None,
     ):
         self.source = source
+        self.collector = collector
         self.buffer_size = max(1, buffer_size)
         self.read_timeout = read_timeout
         self.no_frame_timeout = no_frame_timeout
@@ -102,13 +105,19 @@ class CaptureWorker:
                             raise TimeoutError("no frame received within timeout")
                         time.sleep(0.01)
                         continue
+                    if self.collector is not None:
+                        self.collector.record_latency("capture", elapsed * 1000)
                     reconnects = 0
                     timestamp = time.time()
                     with self._lock:
                         if len(self.buffer) == self.buffer.maxlen:
                             self.metrics.frames_dropped += 1
+                            if self.collector is not None:
+                                self.collector.record_dropped_frame()
                         self.buffer.append((timestamp, frame))
                     self.metrics.frames_read += 1
+                    if self.collector is not None:
+                        self.collector.record_frame()
                     self.metrics.last_frame_at = time.monotonic()
                     last_frame = time.monotonic()
                 except Exception as exc:
@@ -119,6 +128,8 @@ class CaptureWorker:
                     delay = min(self.backoff_base * (2**reconnects), 10.0)
                     reconnects += 1
                     self.metrics.reconnects += 1
+                    if self.collector is not None:
+                        self.collector.record_reconnect()
                     self._stop.wait(delay)
         finally:
             self.source.release()

@@ -13,6 +13,7 @@ import numpy as np
 from app.services.camera_sources import VideoFileSource
 from app.services.capture_worker import CaptureWorker, CaptureMetrics
 from app.services.inference import predict_frame, get_inference
+from app.services.runtime_metrics import RuntimeMetricsCollector
 from app.core.config import settings
 from app.db.models import Camera
 
@@ -28,6 +29,7 @@ class VideoInspectionResult:
     duration_sec: float
     detections: list[dict]
     errors: list[str]
+    metrics: dict | None = None
 
 
 class VideoInspector:
@@ -48,6 +50,7 @@ class VideoInspector:
         self.worker: CaptureWorker | None = None
         self.results: list[dict] = []
         self._stop = False
+        self.metrics = RuntimeMetricsCollector()
 
     def validate_file(self) -> tuple[bool, str | None]:
         """Validate codec/container and size limits."""
@@ -89,6 +92,7 @@ class VideoInspector:
                 duration_sec=0.0,
                 detections=[],
                 errors=[err or "Validation failed"],
+                metrics=self.metrics.snapshot(),
             )
 
         self.worker = CaptureWorker(
@@ -97,6 +101,7 @@ class VideoInspector:
             read_timeout=2.0,
             no_frame_timeout=5.0,
             max_reconnects=3,
+            collector=self.metrics,
         )
         self.worker.start()
 
@@ -118,9 +123,11 @@ class VideoInspector:
                         result["frame_index"] = frame_idx
                         result["timestamp"] = ts
                         self.results.append(result)
+                        self.metrics.record_latency("inference", float(result["latency_ms"]))
                         processed += 1
                     except Exception as exc:
                         errors.append(f"frame {frame_idx}: {exc}")
+                        self.metrics.record_inference_error(f"frame {frame_idx}: {exc}")
                 frame_idx += 1
                 if self.source.frame_count > 0 and frame_idx >= self.source.frame_count:
                     break
@@ -140,6 +147,7 @@ class VideoInspector:
             duration_sec=duration,
             detections=self.results,
             errors=errors,
+            metrics=self.metrics.snapshot(),
         )
 
     def stop(self) -> None:

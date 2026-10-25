@@ -122,6 +122,42 @@ class InspectionManagerTests(unittest.TestCase):
 
         self.assertEqual(result["decision"], "REVIEW")
 
+    def test_runtime_metrics_record_inference_latency(self):
+        from app.services.runtime_metrics import reset_runtime_metrics
+
+        metrics = reset_runtime_metrics()
+        with patch.object(
+            inspection_manager,
+            "predict_frame",
+            return_value={"detections": [], "latency_ms": 7.5},
+        ):
+            result = self._run_frame()
+
+        self.assertEqual(result["decision"], "PASS")
+        snapshot = metrics.snapshot()
+        self.assertEqual(snapshot["latency"]["inference"]["count"], 1)
+        self.assertEqual(snapshot["latency"]["inference"]["last"], 7.5)
+        self.assertEqual(snapshot["counters"]["inference_completed"], 1)
+        self.assertEqual(snapshot["counters"]["inference_errors"], 0)
+
+    def test_runtime_metrics_record_inference_errors(self):
+        from app.services.runtime_metrics import reset_runtime_metrics
+
+        metrics = reset_runtime_metrics()
+        with patch.object(
+            inspection_manager,
+            "predict_frame",
+            side_effect=RuntimeError("model unavailable"),
+        ):
+            result = self._run_frame()
+
+        self.assertEqual(result["decision"], "ERROR")
+        snapshot = metrics.snapshot()
+        self.assertEqual(snapshot["counters"]["inference_errors"], 1)
+        self.assertEqual(snapshot["counters"]["inference_completed"], 0)
+        self.assertEqual(snapshot["rates"]["inference_error_rate"], 1.0)
+        self.assertIn("model unavailable", snapshot["recent_errors"][-1]["message"])
+
     def _run_frame(self):
         import asyncio
 

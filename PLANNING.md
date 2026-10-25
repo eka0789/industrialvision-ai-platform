@@ -18,6 +18,7 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 - **Re-verified 2026-10-24 (Python 3.12.3):** `python -m unittest discover -s tests` from `backend/` passed **137 tests** (89 baseline + 48 Phase 4) and `python -m compileall -q app migrations tests` passed. Baseline repair included: `EvidenceStorage.resolve` now checks containment/existence without `strict=True`, so path traversal raises `ValueError` (instead of leaking `FileNotFoundError` on Python 3.12).
 - **Phase 4 verified:** dataset validation/split/leakage tooling with a machine-readable JSON report (`python -m app.datasets.cli`, 16 tests); dataset setup guide sourced from provider pages (`docs/DATASETS.md`); model registry metadata API under `/models` with migration `a00000000003` (upgrade/downgrade/re-upgrade verified), RBAC, and MODEL_ROOT-only artifact references — absolute paths, traversal, missing files, and unknown extensions are rejected (10 tests); reproducible training/evaluation entry points (`app.training.train`, `app.training.evaluate`) that write metrics only from a completed run on an identified, hashed dataset split (22 tests incl. subprocess CLI runs).
 - **Phase 4 not validated:** no real public dataset was downloaded; no Ultralytics training ran (the missing-runtime path is tested: run marked failed, no metrics file); PostgreSQL, real model inference, and deployment remain unvalidated.
+- **T22 verified (2026-10-24):** runtime metrics collector with units, measurement windows, and hardware metadata; full suite passes **174 tests** (137 Phase 4 + 35 collector + 2 wiring) and `python -m compileall -q app migrations tests` passes. psutil, pynvml, and torch are absent in this workspace, so the psutil backend was verified with a stub, GPU correctly reports `available: false`, and the procfs backend produced the CPU/RAM numbers here. No GPU or real camera workload was measured.
 
 ## Task board
 
@@ -63,7 +64,7 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ### Phase 5 — Metrics and optimization
 
-- [ ] **T22 — Runtime metrics collector.** Measure latency samples, FPS, CPU/RAM, optional GPU, frame drops, reconnects, and inference errors. Include units, measurement windows, and hardware metadata.
+- [x] **T22 — Runtime metrics collector.** `app.services.runtime_metrics` records capture and inference latency samples in bounded windows (ms; P50/P95/P99 withheld until ≥10 samples), windowed FPS over a sliding seconds window, frame drops, reconnects, and inference errors with truncated messages, plus cumulative counters and drop/error rates. Every numeric metric declares its unit in a `UNITS` registry of dotted paths (tests assert full coverage), each snapshot carries its measurement-window metadata (started_at, elapsed, window sizes) and hardware metadata (platform, Python, CPU model/cores, RAM), and resource sampling uses psutil when installed with a Linux `/proc` fallback — the active backend is always named and missing sources report `null`, never invented numbers. GPU sampling is optional (pynvml → torch.cuda) and reports `available: false` when absent. Wired into the capture worker (optional collector; live camera streaming uses the process-wide singleton), video inspection (snapshot attached to the result and returned by `POST /cameras/{camera_id}/inspect-video`), and `process_camera_frame` (inference latency/errors; non-finite latency now yields ERROR instead of being persisted). 35 tests in `tests/test_runtime_metrics.py` plus 2 wiring tests in `tests/test_inspection_manager.py`.
 - [ ] **T23 — Benchmark script/report template.** Benchmark identical input, warmup, batch, resolution, and model versions; report average and P50/P95/P99 only with enough samples; never insert fabricated numbers.
 - [ ] **T24 — ONNX export and parity test.** Export only supported models; compare source/ONNX outputs within explicit tolerances on fixed test inputs; fail validation if output schema or decisions diverge.
 - [ ] **T25 — ONNX Runtime benchmark.** Measure on target CPU/GPU and document accuracy/latency/memory trade-offs. Do not claim ONNX is faster without measurements.
@@ -87,7 +88,7 @@ This backlog breaks the master prompt into small, testable tasks. Each item shou
 
 ## Recommended execution order
 
-Work one task at a time, keeping changes small and tested. Phases 1–4 (T01–T21) are implemented and locally verified: 137 tests pass on SQLite with mocked inference. The immediate next task is **T22 — Runtime metrics collector** (Phase 5). Keep PostgreSQL runtime, actual model inference/training on a real dataset, and deployment validation as explicit gates.
+Work one task at a time, keeping changes small and tested. Phases 1–5 (T01–T22) are implemented and locally verified: 174 tests pass on SQLite with mocked inference. The immediate next task is **T23 — Benchmark script/report template** (Phase 5). Keep PostgreSQL runtime, actual model inference/training on a real dataset, and deployment validation as explicit gates.
 
 ## Cross-cutting definition of done for every task
 
@@ -112,7 +113,8 @@ README-level review only; the reference source code and dependency lockfiles hav
 ## Environment and risks
 
 - Python 3.12.3 (this workspace) and Node 24.13.0 are installed. Dependencies live in the workspace `.venv` (system site-packages is root-owned; a `.pth` file links the preinstalled numpy/OpenCV). Docker is not installed; Docker deployment cannot yet be executed here.
-- `pytest` is not installed. Tests run via standard-library `unittest` (137 passed, 2026-10-24); select/pin a test runner as part of T34.
+- `pytest` is not installed. Tests run via standard-library `unittest` (174 passed, 2026-10-24); select/pin a test runner as part of T34.
+- psutil/pynvml/torch are not installed: runtime resource metrics fall back to Linux `/proc`, and GPU metrics report unavailable. Install psutil to enable its backend; it is intentionally not a required dependency.
 - Current SQLAlchemy default is SQLite. PostgreSQL operation is not yet validated.
 - No industrial model, dataset, physical camera, or GPU has been validated in this workspace. No public dataset has been downloaded here; `docs/DATASETS.md` documents sources and licenses only.
 - Ultralytics/Torch/Anomalib compatibility with Python 3.12 is unknown; the training entry point treats Ultralytics as optional and its missing-runtime path is tested (failed run, no metrics). Keep optional dependencies isolated until verified.

@@ -56,11 +56,11 @@ python -m compileall -q app migrations tests
 python -c "from app.main import app; print(app.title, app.version)"
 ```
 
-The first command currently runs 137 tests (2026-10-24) without a camera, GPU, or real model. `pytest` is not installed in the checked environment. Tests use isolated SQLite databases and mocked model inference; they do **not** prove that inference works on an industrial dataset. SQLite migration upgrade/downgrade is tested. PostgreSQL is not available in the checked environment.
+The first command currently runs 174 tests (2026-10-24) without a camera, GPU, or real model. `pytest` is not installed in the checked environment. Tests use isolated SQLite databases and mocked model inference; they do **not** prove that inference works on an industrial dataset. SQLite migration upgrade/downgrade is tested. PostgreSQL is not available in the checked environment.
 
 ## API status
 
-OpenAPI is exposed at `/api/openapi.json`. Verified route paths include `POST /auth/login`, `GET /health`, camera routes under `/cameras`, admin users under `/admin/users`, `POST /inspections/image`, `GET /inspections`, `GET /inspections/{inspection_id}`, and the model registry routes `GET/POST /models/`, `GET/PATCH /models/{model_id}`, `POST /models/{model_id}/activate|deactivate`, `GET/POST /models/{model_id}/evaluations`. Inspection history supports pagination and filters. Authentication is required for inspection and model endpoints; model writes additionally require `admin` or `ai_engineer`. Treat the API as evolving; consult OpenAPI for request/response schemas.
+OpenAPI is exposed at `/api/openapi.json`. Verified route paths include `POST /auth/login`, `GET /health`, camera routes under `/cameras`, admin users under `/admin/users`, `POST /inspections/image`, `GET /inspections`, `GET /inspections/{inspection_id}`, and the model registry routes `GET/POST /models/`, `GET/PATCH /models/{model_id}`, `POST /models/{model_id}/activate|deactivate`, `GET/POST /models/{model_id}/evaluations`. Inspection history supports pagination and filters. Authentication is required for inspection and model endpoints; model writes additionally require `admin` or `ai_engineer`. `POST /cameras/{camera_id}/inspect-video` includes a `metrics` snapshot (units, measurement windows, hardware metadata). Treat the API as evolving; consult OpenAPI for request/response schemas.
 
 ## Project layout
 
@@ -72,7 +72,7 @@ backend/
 │   ├── datasets/     # Dataset validation, split, and leakage tooling (T18)
 │   ├── db/           # SQLAlchemy models and session factory
 │   ├── schemas/      # Pydantic API and inference schemas
-│   ├── services/     # Inspection, inference contracts, evidence, model registry
+│   ├── services/     # Inspection, inference, evidence, model registry, runtime metrics
 │   ├── training/     # Reproducible run manifests, train/evaluate entry points (T21)
 │   └── vision/       # Model adapters
 ├── migrations/       # Alembic migration environment and revisions
@@ -92,4 +92,4 @@ The reference projects and their public README/license summaries are listed in `
 
 ## Next work
 
-See `PLANNING.md` for the implementation backlog. Phases 1–4 are implemented and locally tested, including dataset validation tooling, the dataset setup guide, the model registry API, and reproducible training/evaluation entry points (137 tests). Next is Phase 5 runtime metrics (T22); PostgreSQL, real model inference/training, and deployment remain unvalidated.
+See `PLANNING.md` for the implementation backlog. Phases 1–5 are implemented and locally tested, including dataset validation tooling, the dataset setup guide, the model registry API, reproducible training/evaluation entry points, and the runtime metrics collector (latency/FPS windows, CPU-RAM-GPU sampling, frame drops, reconnects, inference errors with explicit units and hardware metadata — 174 tests). Next is T23 (benchmark script/report template); PostgreSQL, real model inference/training, and deployment remain unvalidated.
