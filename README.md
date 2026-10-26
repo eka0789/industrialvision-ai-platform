@@ -9,64 +9,64 @@
   <img src="https://img.shields.io/badge/Tests-212%20Passing-1c211b?style=for-the-badge&logoColor=d6f779" alt="Tests" />
 </p>
 
-**IndustrialVision AI** adalah platform inspeksi visual berbasis *computer vision* untuk lingkungan manufaktur dan kendali mutu (*quality control*). Sistem ini mengintegrasikan pengujian citra permukaan, inferensi model (ONNX Runtime, Ultralytics YOLO adapter, PaDiM/PatchCore adapter), pencatatan jejak keputusan (*traceability*), penyimpanan bukti visual berautentikasi, serta konsol operator web responsif bertema **Industrial Instrument Panel**.
+**IndustrialVision AI** is a computer-vision-based visual inspection platform for manufacturing and quality control environments. The system integrates image testing, AI model management, operator workflows, and evidence logging to support decision-making on the production floor.
 
-> **Catatan Kesiapan Produksi:** Repositori ini menyediakan fondasi perangkat lunak modular yang telah lulus uji integrasi dan kontrak API lokal. Penggunaan di lantai produksi nyata tetap memerlukan bobot model industri terlatih, kalibrasi ambang batas cacat, serta validasi pada perangkat keras kamera/GPU target.
+> **Production Readiness Note:** This repository provides a modular software foundation that has passed local integration tests and API contract validation. Real deployment on a live production floor still requires environment-specific validation, governance, and operational monitoring.
 
 ---
 
-## Daftar Isi
+## Table of Contents
 
-1. [Fitur Utama](#fitur-utama)
-2. [Arsitektur Sistem](#arsitektur-sistem)
-3. [Teknologi yang Digunakan](#teknologi-yang-digunakan)
-4. [Prasyarat Sistem](#prasyarat-sistem)
-5. [Panduan Menjalankan Aplikasi (Local Development)](#panduan-menjalankan-aplikasi-local-development)
-   - [1. Clone & Setup Dependensi](#1-clone--setup-dependensi)
-   - [2. Konfigurasi Environment](#2-konfigurasi-environment)
-   - [3. Migrasi Database & Bootstrap Admin](#3-migrasi-database--bootstrap-admin)
-   - [4. Menjalankan Backend API](#4-menjalankan-backend-api)
-   - [5. Menjalankan Frontend Console](#5-menjalankan-frontend-console)
-6. [Alur Penggunaan Operasional](#alur-penggunaan-operasional)
-7. [Struktur Proyek](#struktur-proyek)
-8. [Referensi REST & WebSocket API](#referensi-rest--websocket-api)
-9. [Variabel Environment](#variabel-environment)
-10. [Pengujian & Verifikasi Kualitas](#pengujian--verifikasi-kualitas)
-11. [Deployment dengan Docker Compose](#deployment-dengan-docker-compose)
+1. [Core Features](#core-features)
+2. [System Architecture](#system-architecture)
+3. [Technology Stack](#technology-stack)
+4. [System Requirements](#system-requirements)
+5. [Application Startup Guide (Local Development)](#application-startup-guide-local-development)
+   - [1. Clone & Install Dependencies](#1-clone--install-dependencies)
+   - [2. Environment Configuration](#2-environment-configuration)
+   - [3. Database Migration & Admin Bootstrap](#3-database-migration--admin-bootstrap)
+   - [4. Running the Backend API](#4-running-the-backend-api)
+   - [5. Running the Frontend Console](#5-running-the-frontend-console)
+6. [Operational Workflow](#operational-workflow)
+7. [Project Structure](#project-structure)
+8. [REST & WebSocket API Reference](#rest--websocket-api-reference)
+9. [Environment Variables](#environment-variables)
+10. [Testing & Quality Verification](#testing--quality-verification)
+11. [Docker Compose Deployment](#docker-compose-deployment)
 12. [Troubleshooting](#troubleshooting)
-13. [Keamanan & Batasan Sistem](#keamanan--batasan-sistem)
-14. [Lisensi & Kontribusi](#lisensi--kontribusi)
+13. [Security & System Limitations](#security--system-limitations)
+14. [License & Contribution](#license--contribution)
 
 ---
 
-## Fitur Utama
+## Core Features
 
-- **Konsol Operator Industrial (Anti-AI Slop UI):**
-  Antarmuka berkarakter kuat menggunakan palet warna grafit (`#1c211b`), *warm off-white* (`#f3f4ed`), dan *signal lime* (`#d6f779`). Dilengkapi tipografi lokal (*Space Grotesk*, *Manrope*, *IBM Plex Mono*), garis bidik registrasi (*corner viewfinders*), skala ukur (*evidence ruler*), dan pita riwayat keputusan (*decision tape*).
-- **Alur Inspeksi Citra & Bukti Visual:**
-  Unggah gambar sampel produk (JPEG, PNG, WebP hingga 100 MB). Keputusan kualitas (`PASS`, `FAIL`, `REVIEW`, `ERROR`) dihasilkan bersama latensi inferensi numerik, alasan keputusan, dan overlay *bounding box* SVG yang terkunci presisi pada piksel gambar nyata.
-- **Penyimpanan Bukti Aman (*Evidence Storage*):**
-  Gambar bukti disimpan dengan resolusi jalur sisi server yang aman dari serangan *path traversal*. Pengambilan bukti visual melalui endpoint `GET /inspections/{id}/evidence` wajib memiliki JWT aktif dan disajikan sebagai blob lokal dengan header `nosniff`.
-- **Registry & Manajemen Model AI:**
-  Pencatatan versi model (ONNX, YOLO), *task type* (deteksi objek, anomali citra, segmentasi anomali), kelas cacat, ambang batas *confidence*, *checksum* SHA-256 otomatis dari artefak server, serta riwayat metrik evaluasi. Menegakkan aturan satu model aktif per kategori tugas.
-- **Manajemen Stasiun Inspeksi (Fleet):**
-  Pendaftaran stasiun kerja dengan sumber fleksibel (*browser upload*, RTSP, USB webcam, file lokal, simulasi) dengan redaksi otomatis kredensial URL RTSP.
-- **Kontrol Akses Berbasis Peran (RBAC):**
-  Pemisahan hak akses ketat di level API dan antarmuka web:
-  - `admin`: konfigurasi penuh, pembuatan stasiun, penambahan akun pengguna.
-  - `ai_engineer`: seluruh akses operasional, registrasi model, aktivasi/evaluasi model.
-  - `operator`: eksekusi inspeksi harian, peninjauan bukti, perubahan status operasional stasiun.
-- **Aksesibilitas & Standar Mobile:**
-  Lolos audit otomatis **WCAG 2.1 AA** (rasio kontras teks, fokus keyboard, modal native dengan *focus containment*) serta layout adaptif penuh pada viewport mobile (390 px) tanpa *horizontal overflow*.
+- **Industrial Operator Console (Anti-AI Slop UI):**
+  A strong, industrial interface using a graphite palette (`#1c211b`), warm off-white (`#f3f4ed`), and signal lime (`#d6f779`). Includes locally bundled typography (*Space Grotesk*, *Manrope*, *IBM Plex Mono*) and a clear operational layout designed for production environments.
+- **Image Inspection Workflow & Visual Evidence:**
+  Upload sample product images (JPEG, PNG, WebP up to 100 MB). Quality decisions (`PASS`, `FAIL`, `REVIEW`, `ERROR`) are generated alongside numerical inference latency, decision rationale, and detection overlays.
+- **Secure Evidence Storage:**
+  Evidence images are stored with server-side path validation to prevent path traversal attacks. Retrieval of visual evidence via `GET /inspections/{id}/evidence` requires a valid JWT token and is isolated from direct public access.
+- **AI Model Registry & Management:**
+  Version tracking for AI models (ONNX, YOLO), task type registration (object detection, image anomaly, anomaly segmentation), defect classes, confidence thresholds, automatic SHA-256 checksum validation of server artefacts, and activation/deactivation controls.
+- **Inspection Station Management (Fleet):**
+  Registration of workstations with flexible sources (*browser upload*, RTSP, USB webcam, local file, simulation) and automatic redaction of RTSP credentials in stored URLs.
+- **Role-Based Access Control (RBAC):**
+  Strict separation of permissions at both the API and web interface layers:
+  - `admin`: full configuration, station setup, user account management.
+  - `ai_engineer`: full operational access, model registration, activation/evaluation.
+  - `operator`: daily inspection execution, evidence review, operational status changes for stations.
+- **Accessibility & Mobile Standards:**
+  Passes automated **WCAG 2.1 AA** compliance checks (text contrast, keyboard focus, native modal focus containment) and adaptive mobile layout on 390 px viewports without horizontal overflow.
 
 ---
 
-## Arsitektur Sistem
+## System Architecture
 
-Platform mengadopsi pola **Modular Monolith** dengan pemisahan tegas antara logika domain, adapter perangkat keras/model, dan lapisan penyajian:
+The platform follows a **Modular Monolith** pattern with clear separation between domain logic, hardware/model adapters, and presentation layers:
 
 ```text
-[ Kamera / File / Browser Upload ]
+[ Camera / File / Browser Upload ]
                  │
                  ▼
 [ Fastify / Starlette Proxy (Vite Dev / Nginx Production) ]
@@ -95,306 +95,311 @@ Platform mengadopsi pola **Modular Monolith** dengan pemisahan tegas antara logi
 
 ---
 
-## Teknologi yang Digunakan
+## Technology Stack
 
 ### Backend & AI Runtime
-- **Bahasa & Framework:** Python 3.13+, FastAPI, Starlette, Uvicorn
-- **ORM & Migrasi:** SQLAlchemy 2.0 (Synchronous Engine), Alembic
-- **Visi Komputer & Inferensi:** OpenCV Headless, Pillow, NumPy, ONNX Runtime, ONNX
-- **Keamanan & Autentikasi:** PyJWT, Passlib (Argon2 / BCrypt)
+- **Language & Framework:** Python 3.13+, FastAPI, Starlette, Uvicorn
+- **ORM & Migrations:** SQLAlchemy 2.0 (Synchronous Engine), Alembic
+- **Computer Vision & Inference:** OpenCV Headless, Pillow, NumPy, ONNX Runtime, ONNX
+- **Security & Authentication:** PyJWT, Passlib (Argon2 / BCrypt)
 
 ### Frontend Console
 - **Framework:** React 19, TypeScript 5.8+, Vite 8
-- **Routing & State:** React Router 7, Context API, Hooks Kustom (`useAuth`, `useApi`, `useToast`)
-- **Desain & Ikon:** Token CSS Kustom, Tailwind CSS v4, Lucide React
-- **Tipografi:** `@fontsource-variable/space-grotesk`, `@fontsource-variable/manrope`, `@fontsource/ibm-plex-mono`
-- **Testing Otomatis:** Playwright, `@axe-core/playwright`
+- **Routing & State:** React Router 7, Context API, custom hooks (`useAuth`, `useApi`, `useToast`)
+- **Design & Icons:** Custom CSS tokens, Tailwind CSS v4, Lucide React
+- **Typography:** `@fontsource-variable/space-grotesk`, `@fontsource-variable/manrope`, `@fontsource/ibm-plex-mono`
+- **Automated Testing:** Playwright, `@axe-core/playwright`
 
-### Infrastruktur & Deployment
-- **Kontainerisasi:** Docker Multi-stage Builds, Docker Compose
-- **Web Server Produksi:** Nginx Unprivileged (`nginxinc/nginx-unprivileged:alpine-slim`)
-- **Database Produksi:** PostgreSQL 16 Alpine
-
----
-
-## Prasyarat Sistem
-
-Sebelum memulai, pastikan perangkat Anda memiliki:
-
-- **Python:** Versi 3.11 s/d 3.13 (disarankan 3.13).
-- **Node.js:** Versi 20.x atau 22.x LTS (disertai `npm` 10+).
-- **Git:** Versi terbaru.
-- **Docker & Docker Compose:** *(Opsional, jika ingin menjalankan deployment kontainer).*
-- **OS:** Windows 10/11, macOS, atau Linux (Ubuntu 22.04+).
+### Infrastructure & Deployment
+- **Containerization:** Docker multi-stage builds, Docker Compose
+- **Production Web Server:** Nginx unprivileged (`nginxinc/nginx-unprivileged:alpine-slim`)
+- **Production Database:** PostgreSQL 16 Alpine
 
 ---
 
-## Panduan Menjalankan Aplikasi (Local Development)
+## System Requirements
 
-### 1. Clone & Setup Dependensi
+Before starting, ensure your environment includes:
+
+- **Python:** Version 3.11 to 3.13 (recommended 3.13)
+- **Node.js:** Version 20.x or 22.x LTS (with `npm` 10+)
+- **Git:** Latest version
+- **Docker & Docker Compose:** *(Optional, if you want container-based deployment)*
+- **OS:** Windows 10/11, macOS, or Linux (Ubuntu 22.04+)
+
+---
+
+## Application Startup Guide (Local Development)
+
+### 1. Clone & Install Dependencies
 
 ```bash
-# Clone repositori
+# Clone the repository
 git clone https://github.com/user/industrialvision-ai-platform.git
 cd industrialvision-ai-platform
 
-# Install dependensi backend Python
+# Install Python backend dependencies
 python -m pip install --upgrade pip
 python -m pip install -r backend/requirements.txt
 
-# Install dependensi frontend React
+# Install React frontend dependencies
 npm --prefix frontend install
 ```
 
-### 2. Konfigurasi Environment
+### 2. Environment Configuration
 
-Salin file contoh konfigurasi ke root dan direktori frontend:
+Copy the sample configuration files to the project root and frontend directory:
 
 ```bash
-# Environment utama backend
+# Main backend environment
 cp .env.example .env
 
-# Environment frontend
+# Frontend environment
 cp frontend/.env.example frontend/.env
 ```
 
-Untuk pengujian lokal, nilai default pada `.env.example` (SQLite di `./industrialvision_ai.db`) sudah siap digunakan langsung.
+For local testing, the default values in `.env.example` (SQLite at `./industrialvision_ai.db`) are ready to use immediately.
 
-### 3. Migrasi Database & Bootstrap Admin
+### 3. Database Migration & Admin Bootstrap
 
-Jalankan migrasi skema tabel database dan buat akun administrator pertama Anda:
+Run the database schema migration and create your first administrator account:
 
 ```bash
 cd backend
 
-# Terapkan migrasi database Alembic
+# Apply Alembic database migrations
 alembic upgrade head
 
-# Buat admin pertama (perintah ini hanya berlaku jika database belum memiliki admin)
-python -m app.cli create-admin --username admin_pabrik
+# Create the first admin (this only applies if the database has no admin yet)
+python -m app.cli create-admin --username admin_factory
 ```
-*Sistem akan meminta password interaktif (wajib minimal 12 karakter).*
 
-> **Penting Mengenai Akun Admin:**  
-> Perintah `python -m app.cli create-admin` **hanya bisa dijalankan satu kali** saat instalasi awal. Jika database sudah memiliki admin, pembuatan akun berikutnya (operator, engineer, maupun admin tambahan) wajib dilakukan melalui antarmuka web pada menu **Akses Pengguna** (`/admin`) setelah Anda login.
+The system will prompt for a password interactively (minimum 12 characters required).
 
-### 4. Menjalankan Backend API
+> **Important Note About Admin Accounts:**  
+> The command `python -m app.cli create-admin` can only be run once during initial installation. If the database already contains an admin, additional user creation (operators, engineers, or admin accounts) must be performed through the web UI or admin user-management API.
 
-Dari folder `backend`:
+### 4. Running the Backend API
+
+From the `backend` folder:
 
 ```bash
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Backend aktif pada:
+The backend is available at:
 - **API Base:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Dokumentasi Interaktif Swagger:** [http://127.0.0.1:8000/api/docs](http://127.0.0.1:8000/api/docs)
+- **Interactive Swagger Documentation:** [http://127.0.0.1:8000/api/docs](http://127.0.0.1:8000/api/docs)
 - **OpenAPI JSON:** [http://127.0.0.1:8000/api/openapi.json](http://127.0.0.1:8000/api/openapi.json)
 
-### 5. Menjalankan Frontend Console
+### 5. Running the Frontend Console
 
-Buka terminal baru di folder proyek root:
+Open a new terminal in the project root:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Buka peramban Anda di [http://127.0.0.1:5173](http://127.0.0.1:5173).
+Open your browser at [http://127.0.0.1:5173](http://127.0.0.1:5173).
 
-> **Alur Proxy Vite:**  
-> Frontend dikonfigurasi menggunakan proxy edge `/api/v1` yang secara otomatis meneruskan permintaan ke backend di port `8000`. Hal ini mencegah konflik antara routing SPA frontend (seperti rute `/cameras`) dan endpoint REST API backend.
-
----
-
-## Alur Penggunaan Operasional
-
-Setelah masuk ke aplikasi, ikuti langkah berikut untuk memulai pengujian:
-
-1. **Masuk ke Ruang Kendali:**  
-   Buka `/login` dan masuk menggunakan akun administrator Anda.
-2. **Daftarkan Stasiun Kerja:**  
-   Buka menu **Stasiun & kamera** (`/cameras`), klik **Tambah stasiun**, beri nama (misal `Line 01 - Visual Stamping`), dan pilih jenis sumber **Unggah gambar**.
-3. **Registrasi Artefak Model:**  
-   Buka menu **Registry model** (`/models`). Pastikan file model ONNX berada di folder `backend/models/`. Masukkan nama file (contoh `detector.onnx`), definisikan kelas cacat, konfigurasi format output (`xyxy_conf_class_nx6`), lalu aktifkan model.
-4. **Jalankan Inspeksi Sampel:**  
-   Buka menu **Inspeksi baru** (`/inspections/new`), pilih stasiun dan model aktif, lalu unggah citra komponen produk. Sistem akan melakukan inferensi, menyimpan bukti asli, dan menampilkan kotak temuan cacat.
-5. **Audit Jejak Kualitas:**  
-   Buka menu **Riwayat inspeksi** (`/inspections`) untuk melihat log keputusan, memfilter berdasarkan keputusan atau batch, dan mengunduh rekaman audit dalam format JSON.
+> **Vite Proxy Flow:**  
+> The frontend is configured with a `/api/v1` proxy edge that forwards requests to the backend on port `8000`. This prevents conflicts with the SPA routing layer and keeps frontend routes like `/camera` and `/models` isolated from backend APIs.
 
 ---
 
-## Struktur Proyek
+## Operational Workflow
+
+After logging in, follow these steps to start inspections:
+
+1. **Log In to the Control Room:**  
+   Open `/login` and sign in using your administrator credentials.
+2. **Register a Workstation:**  
+   Open the **Stations & Cameras** menu (`/cameras`), click **Add station**, assign a name (for example `Line 01 - Visual Stamping`), and choose the source type **Upload image**.
+3. **Register Model Artefacts:**  
+   Open the **Model registry** page (`/models`). Ensure the ONNX model file is located in the `backend/models/` folder. Enter the filename (for example `detector.onnx`), define the defect classes, output format configuration, and activation settings.
+4. **Run a Sample Inspection:**  
+   Open the **New inspection** page (`/inspections/new`), select the station and active model, then upload a product component image. The system performs inference, stores the original evidence, and displays the bounding boxes and decisions.
+5. **Audit the Quality Trace:**  
+   Open the **Inspection history** page (`/inspections`) to view decision logs, filter by outcome or batch, and export the audit trail as JSON.
+
+---
+
+## Project Structure
 
 ```text
 industrialvision-ai-platform/
 ├── .github/workflows/          # CI/CD GitHub Actions (lint, test, build, compose audit)
-├── backend/                    # Core API, domain service, dan engine visi komputer
+├── backend/                    # Core API, domain services, and computer vision engine
 │   ├── app/
-│   │   ├── api/v1/             # Router REST API (auth, cameras, inspections, models, admin)
-│   │   ├── core/               # Konfigurasi Pydantic, security, logging sanitizer, constants
-│   │   ├── db/                 # Model SQLAlchemy, session factory, base metadata
-│   │   ├── schemas/            # Skema validasi request/response Pydantic
-│   │   ├── services/           # Logika bisnis: decision, evidence storage, camera worker
-│   │   └── vision/             # Adapter inference (ONNX Runtime, YOLO, PatchCore/PaDiM)
-│   ├── migrations/             # Lingkungan migrasi schema database Alembic
-│   ├── tests/                  # 212 unit & integration tests berbasis unittest
-│   ├── alembic.ini             # Konfigurasi migrasi database
-│   ├── Dockerfile              # Multi-stage image build backend (non-root appuser)
-│   └── requirements.txt        # Dependensi Python terpadu
-├── frontend/                   # Konsol antarmuka operator web
-│   ├── public/                 # Favicon dan aset statis
+│   │   ├── api/v1/             # REST API routers (auth, cameras, inspections, models, admin)
+│   │   ├── core/               # Pydantic configuration, security, logging sanitization, constants
+│   │   ├── db/                 # SQLAlchemy models, session factory, base metadata
+│   │   ├── schemas/            # Pydantic request/response validation schemas
+│   │   ├── services/           # Business logic: decision engine, evidence storage, camera worker
+│   │   └── vision/             # Inference adapters (ONNX Runtime, YOLO, PatchCore/PaDiM)
+│   ├── migrations/             # Alembic migration environment
+│   ├── tests/                  # 212 unit and integration tests using unittest
+│   ├── alembic.ini             # Database migration configuration
+│   ├── Dockerfile              # Multi-stage backend container build (non-root appuser)
+│   └── requirements.txt        # Unified Python dependencies
+├── frontend/                   # Operator console web app
+│   ├── public/                 # Favicon and static assets
 │   ├── src/
-│   │   ├── api/                # Klien HTTP Axios dengan interseptor JWT bearer & auto-logout
-│   │   ├── components/         # Komponen UI: Brand, EvidenceImage, InspectionTable, Modal, dll.
+│   │   ├── api/                # HTTP client with JWT bearer interceptor and auto-logout
+│   │   ├── components/         # UI components: Brand, EvidenceImage, InspectionTable, Modal, etc.
 │   │   ├── hooks/              # Custom hooks: useAuth, useApi, useToast
-│   │   ├── layouts/            # AppShell dengan navigasi industrial & drawer mobile
-│   │   ├── pages/              # Halaman: Overview, NewInspection, History, Cameras, Models, Admin
-│   │   ├── styles/             # Desain sistem modular: app.css, pages.css, responsive.css
-│   │   ├── types/              # Deklarasi tipe TypeScript terpadu
-│   │   ├── utils/              # Formatter data dan parser error multibahasa
-│   │   ├── App.tsx             # Routing & guard otorisasi peran
-│   │   ├── index.css           # Token warna, tipografi, dan variabel CSS
-│   │   └── main.tsx            # Entry point React 19
-│   ├── nginx.conf              # Konfigurasi reverse proxy, SPA fallback, & security headers
-│   ├── Dockerfile              # Multi-stage build Nginx unprivileged
-│   └── package.json            # Dependensi React, TypeScript, dan Vite
-├── docs/                       # Dokumentasi arsitektur, dataset, operasi, & release gate
-├── docker-compose.yml          # Orkestrasi multi-kontainer (PostgreSQL, Backend, Frontend)
-├── .env.example                # Template variabel environment
-└── README.md                   # Dokumentasi teknis proyek
+│   │   ├── layouts/            # AppShell with industrial navigation and mobile drawer
+│   │   ├── pages/              # Pages: Overview, NewInspection, History, Cameras, Models, Admin
+│   │   ├── styles/             # Design system modules: app.css, pages.css, responsive.css
+│   │   ├── types/              # Unified TypeScript declarations
+│   │   ├── utils/              # Data formatters and multilingual error parsers
+│   │   ├── App.tsx             # Routing and role-based route guards
+│   │   ├── index.css           # Color tokens, typography, and CSS variables
+│   │   └── main.tsx            # React 19 entry point
+│   ├── nginx.conf              # Reverse proxy config, SPA fallback, and security headers
+│   ├── Dockerfile              # Multi-stage Nginx build
+│   └── package.json            # React, TypeScript, and Vite dependencies
+├── docs/                       # Architecture, dataset, operations, and release gate documents
+├── docker-compose.yml          # Multi-container orchestration (PostgreSQL, Backend, Frontend)
+├── .env.example                # Environment variable template
+└── README.md                   # Project technical documentation
 ```
 
 ---
 
-## Referensi REST & WebSocket API
+## REST & WebSocket API Reference
 
-Seluruh endpoint bisnis mewajibkan header `Authorization: Bearer <token_jwt>` kecuali endpoint publik.
+All business endpoints require the `Authorization: Bearer <token_jwt>` header unless they are public endpoints.
 
-| Modul | Method | Endpoint | Akses Peran | Deskripsi |
+| Module | Method | Endpoint | Role Access | Description |
 |---|---|---|---|---|
-| **System** | `GET` | `/health` | Publik | Status server, versi, koneksi DB, dan stasiun aktif. |
-| **Auth** | `POST` | `/auth/login` | Publik | Otentikasi username & password, mengembalikan token JWT. |
-| **Auth** | `GET` | `/auth/me` | Semua Peran | Profil dan hak akses pengguna yang sedang login. |
-| **Auth** | `POST` | `/auth/logout` | Publik | Invalidasi sesi di sisi klien (stateless). |
-| **Cameras** | `GET` | `/cameras` | Semua Peran | Daftar seluruh stasiun kerja inspeksi. |
-| **Cameras** | `POST` | `/cameras` | `admin` | Mendaftarkan stasiun kerja baru. |
-| **Cameras** | `GET` | `/cameras/{id}` | Semua Peran | Informasi rinci dan spesifikasi stasiun. |
-| **Cameras** | `PUT` | `/cameras/{id}` | `admin` | Memperbarui nama, resolusi, FPS, atau status stasiun. |
-| **Cameras** | `DELETE` | `/cameras/{id}` | `admin` | Menghapus stasiun kerja dari sistem. |
-| **Cameras** | `POST` | `/cameras/{id}/start` | `admin`, `operator` | Mengubah status stasiun menjadi `connected`. |
-| **Cameras** | `POST` | `/cameras/{id}/stop` | `admin`, `operator` | Mengubah status stasiun menjadi `disconnected`. |
-| **Inspections**| `POST`| `/inspections/image` | Semua Peran | Unggah gambar sampel multipart & jalankan inferensi. |
-| **Inspections**| `GET` | `/inspections` | Semua Peran | Riwayat inspeksi terpaginasi dengan filter keputusan/batch. |
-| **Inspections**| `GET` | `/inspections/{id}` | Semua Peran | Detail hasil, latensi, alasan keputusan, & temuan cacat. |
-| **Inspections**| `GET` | `/inspections/{id}/evidence` | Semua Peran | Mengambil file citra bukti asli secara aman (blob). |
-| **Models** | `GET` | `/models/` | Semua Peran | Katalog model AI terdaftar dengan filter task type. |
-| **Models** | `POST` | `/models/` | `admin`, `ai_engineer` | Registrasi metadata artefak model server. |
-| **Models** | `POST` | `/models/{id}/activate` | `admin`, `ai_engineer` | Mengaktifkan model untuk inferensi aktif. |
-| **Models** | `POST` | `/models/{id}/deactivate` | `admin`, `ai_engineer` | Menonaktifkan model dari antrean inferensi. |
-| **Models** | `GET` | `/models/{id}/evaluations` | Semua Peran | Rekam jejak evaluasi performa model. |
-| **Admin** | `POST` | `/admin/users` | `admin` | Membuat akun operator atau engineer baru. |
-| **Stream** | `WS` | `/ws/cameras/{id}/stream` | JWT Valid | Stream metadata event kamera realtime. |
+| **System** | `GET` | `/health` | Public | Server status, version, database connection, and active stations. |
+| **Auth** | `POST` | `/auth/login` | Public | Username/password authentication; returns a JWT token. |
+| **Auth** | `GET` | `/auth/me` | All Roles | Current logged-in user profile and access permissions. |
+| **Auth** | `POST` | `/auth/logout` | Public | Client-side session invalidation (stateless). |
+| **Cameras** | `GET` | `/cameras` | All Roles | List of all inspection workstations. |
+| **Cameras** | `POST` | `/cameras` | `admin` | Register a new inspection workstation. |
+| **Cameras** | `GET` | `/cameras/{id}` | All Roles | Detailed workstation information and specifications. |
+| **Cameras** | `PUT` | `/cameras/{id}` | `admin` | Update name, resolution, FPS, or station status. |
+| **Cameras** | `DELETE` | `/cameras/{id}` | `admin` | Remove a workstation from the system. |
+| **Cameras** | `POST` | `/cameras/{id}/start` | `admin`, `operator` | Set workstation status to `connected`. |
+| **Cameras** | `POST` | `/cameras/{id}/stop` | `admin`, `operator` | Set workstation status to `disconnected`. |
+| **Inspections** | `POST` | `/inspections/image` | All Roles | Upload a sample image multipart and run inference. |
+| **Inspections** | `GET` | `/inspections` | All Roles | Paginated inspection history with decision and batch filters. |
+| **Inspections** | `GET` | `/inspections/{id}` | All Roles | Detailed result, latency, decision rationale, and defect findings. |
+| **Inspections** | `GET` | `/inspections/{id}/evidence` | All Roles | Retrieve original evidence image securely (blob). |
+| **Models** | `GET` | `/models/` | All Roles | Catalog of registered AI models filtered by task type. |
+| **Models** | `POST` | `/models/` | `admin`, `ai_engineer` | Register model artefact metadata on the server. |
+| **Models** | `POST` | `/models/{id}/activate` | `admin`, `ai_engineer` | Activate a model for active inference. |
+| **Models** | `POST` | `/models/{id}/deactivate` | `admin`, `ai_engineer` | Deactivate a model from the inference queue. |
+| **Models** | `GET` | `/models/{id}/evaluations` | All Roles | Evaluation performance history of the model. |
+| **Admin** | `POST` | `/admin/users` | `admin` | Create a new operator or engineer account. |
+| **Stream** | `WS` | `/ws/cameras/{id}/stream` | Valid JWT | Stream realtime camera metadata events. |
 
 ---
 
-## Variabel Environment
+## Environment Variables
 
-| Variabel | Deskripsi | Default / Contoh | Diperlukan di Produksi? |
+| Variable | Description | Default / Example | Required in Production? |
 |---|---|---|:---:|
-| `APP_ENV` | Mode lingkungan aplikasi (`development` / `production`). | `development` | Ya |
-| `DEBUG` | Mengaktifkan logging debug dan echo query SQL. | `false` | Ya (wajib `false`) |
-| `HOST` | Alamat binding host Uvicorn. | `127.0.0.1` | Ya |
-| `PORT` | Port server backend. | `8000` | Ya |
-| `DATABASE_URL` | URL koneksi SQLAlchemy sinkron. | `sqlite:///./industrialvision_ai.db` | Ya (wajib PostgreSQL) |
-| `JWT_SECRET` | Kunci rahasia hashing token JWT (min. 32 karakter). | `dev-only-insecure-secret...` | Ya (wajib acak & unik) |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Masa berlaku sesi token dalam menit. | `15` | Ya |
-| `CORS_ORIGINS` | Daftar origin browser yang diizinkan (dipisah koma). | `http://localhost:5173,http://localhost:3000` | Ya (tanpa wildcard `*`) |
-| `MAX_UPLOAD_BYTES` | Batas maksimum ukuran file gambar (byte). | `104857600` (100 MB) | Opsional |
-| `EVIDENCE_ROOT` | Direktori penyimpanan fisik bukti visual. | `data/evidence` | Opsional |
-| `MODEL_ROOT` | Direktori penyimpanan artefak bobot model. | `models` | Opsional |
+| `APP_ENV` | Application environment mode (`development` / `production`). | `development` | Yes |
+| `DEBUG` | Enables debug logging and SQL query echoing. | `false` | Yes (must be `false`) |
+| `HOST` | Uvicorn bind host address. | `127.0.0.1` | Yes |
+| `PORT` | Backend server port. | `8000` | Yes |
+| `DATABASE_URL` | SQLAlchemy synchronous database URL. | `sqlite:///./industrialvision_ai.db` | Yes (must be PostgreSQL in production) |
+| `JWT_SECRET` | Secret key for JWT hashing (minimum 32 characters). | `dev-only-insecure-secret...` | Yes (must be random and unique) |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT session lifetime in minutes. | `15` | Yes |
+| `CORS_ORIGINS` | Comma-separated list of allowed browser origins. | `http://localhost:5173,http://localhost:3000` | Yes (no wildcard `*`) |
+| `MAX_UPLOAD_BYTES` | Max allowed image file size in bytes. | `104857600` (100 MB) | Optional |
+| `EVIDENCE_ROOT` | Physical storage directory for visual evidence. | `data/evidence` | Optional |
+| `MODEL_ROOT` | Storage directory for model artefacts. | `models` | Optional |
 
 ---
 
-## Pengujian & Verifikasi Kualitas
+## Testing & Quality Verification
 
-Proyek ini menerapkan verifikasi ketat sebelum kode dapat di-merge atau dirilis:
+This project uses strict validation before code can be merged or released:
 
 ```bash
-# 1. Jalankan 212 Unit & Integration Tests Backend
+# 1. Run the 212 backend unit and integration tests
 cd backend
 python -m unittest discover -s tests -v
 
-# 2. Verifikasi Kompilasi Kode Python
+# 2. Verify Python code compilation
 python -m compileall -q app migrations tests
 
-# 3. Linter Kode Frontend (Oxlint)
+# 3. Run the frontend linter (Oxlint)
 npm --prefix frontend run lint
 
-# 4. Typecheck TypeScript & Build Produksi Frontend
+# 4. Type-check TypeScript and build the production frontend
 npm --prefix frontend run build
 ```
 
-Hasil verifikasi lokal terkini:
-- **Backend:** 212 tests lulus (0 gagal, 0 error).
-- **Frontend Build:** Bundle produksi terkompilasi bersih tanpa *type error*.
-- **Aksesibilitas:** 0 pelanggaran standar WCAG 2.1 AA di seluruh rute utama.
-- **Responsif:** 0 *horizontal overflow* pada pengujian layar mobile 390 px.
+Latest verification results:
+- **Backend:** 212 tests passing (0 failed, 0 errors).
+- **Frontend build:** Production bundle compiles cleanly without type errors.
+- **Accessibility:** 0 WCAG 2.1 AA violations across the main routes.
+- **Responsiveness:** 0 horizontal overflow on 390 px mobile viewport tests.
 
 ---
 
-## Deployment dengan Docker Compose
+## Docker Compose Deployment
 
-Untuk menjalankan lingkungan produksi terisolasi dengan PostgreSQL 16, backend mandiri, dan frontend Nginx unprivileged:
+To run an isolated production-ready environment with PostgreSQL 16, a standalone backend, and an unprivileged Nginx frontend:
 
 ```bash
-# 1. Pastikan variabel JWT_SECRET dan POSTGRES_PASSWORD telah diatur di .env
-export JWT_SECRET="kunci-rahasia-produksi-minimal-tiga-puluh-dua-karakter"
-export POSTGRES_PASSWORD="PasswordKuatPostgres2026!"
+# 1. Ensure JWT_SECRET and POSTGRES_PASSWORD are set in .env
+export JWT_SECRET="production-secret-key-minimum-thirty-two-characters"
+export POSTGRES_PASSWORD="StrongPostgresPassword2026!"
 
-# 2. Bangun dan jalankan seluruh container
+# 2. Build and run the full stack
 docker compose up -d --build
 
-# 3. Periksa status kontainer
+# 3. Check container status
 docker compose ps
 ```
 
-Layanan akan berjalan pada:
+Services will be available at:
 - **Frontend Console:** [http://localhost:8080](http://localhost:8080)
-- **Backend Internal:** `http://backend:8000` (dapat diakses internal oleh frontend proxy)
-- **Database:** PostgreSQL terisolasi di jaringan internal Docker tanpa port publik terbuka ke host.
+- **Backend Internal:** `http://backend:8000` (accessible internally via the frontend proxy)
+- **Database:** PostgreSQL is isolated in the internal Docker network and does not expose a public host port.
 
 ---
 
 ## Troubleshooting
 
 ### 1. `An administrator already exists; use the admin user-management API`
-Perintah `python -m app.cli create-admin` hanya berlaku untuk pembuatan admin pertama kali saat database masih kosong. Jika database lokal sudah memiliki admin, silakan login di antarmuka web dengan kredensial tersebut, lalu buka menu **Akses pengguna** (`/admin`) untuk membuat user baru.
+The command `python -m app.cli create-admin` is only valid when creating the first administrator while the database is still empty. If your local database already contains an admin, log in through the web interface and use the user management flow instead.
 
-### 2. Status API Menampilkan "Sistem perlu perhatian" / Database Degraded
-Pastikan database SQLite dapat diakses atau layanan PostgreSQL sudah aktif. Pengecekan kesehatan dapat diverifikasi langsung melalui:
+### 2. API Status Shows "System requires attention" / Database Degraded
+Make sure the SQLite database is accessible or that the PostgreSQL service is running. Health checks can be validated directly via:
+
 ```bash
 curl http://127.0.0.1:8000/health
 ```
-Respons normal: `{"status": "ok", "database": "ok", ...}`.
 
-### 3. Citra Bukti Inspeksi Tidak Tampil di Peramban
-Pastikan folder `data/evidence/` memiliki izin baca/tulis bagi proses yang menjalankan backend. Endpoint bukti visual memerlukan token bearer yang sah.
+A normal response looks like: `{"status": "ok", "database": "ok", ...}`.
 
-### 4. Gambar Bounding Box Tidak Sejajar
-Bounding box SVG dihitung berdasarkan dimensi alami citra (*natural dimensions*) dan diselaraskan ke kontainer gambar render secara proporsional. Pastikan gambar tidak mengalami manipulasi rasio aspek di luar CSS yang ditentukan.
+### 3. Inspection Evidence Image Does Not Display in the Browser
+Ensure the `data/evidence/` directory has read/write permissions for the user running the backend process. The visual evidence endpoint requires a valid bearer token.
 
----
-
-## Keamanan & Batasan Sistem
-
-- **Sanitasi Kredensial:** URL kamera berprotokol RTSP secara otomatis disanitasi dari username/password sebelum disimpan atau ditampilkan di log/API.
-- **Pencegahan Path Traversal:** Permintaan file model dan file bukti visual divalidasi ketat terhadap direktori dasar yang telah ditentukan (`MODEL_ROOT` dan `EVIDENCE_ROOT`). Penggunaan `..` atau penamaan path absolut akan ditolak dengan kode `422/404`.
-- **Keterbatasan Live Stream:** Streaming video kamera langsung melalui antarmuka browser saat ini belum mencakup pipeline decoding frame WebRTC/RTSP end-to-end; alur kerja produksi yang divalidasi adalah *image acquisition & upload*.
-- **Peringatan Model:** Mengaktifkan model di antarmuka hanya menandakan ketersediaan artefak untuk inferensi, bukan jaminan bahwa model tersebut telah divalidasi akurasinya untuk mendeteksi cacat fisik industri.
+### 4. Bounding Boxes Are Misaligned
+SVG bounding boxes are calculated using the image's natural dimensions and then aligned proportionally to the rendered image container. Ensure the image is not being distorted or resized with an incorrect aspect ratio during display.
 
 ---
 
-## Lisensi & Kontribusi
+## Security & System Limitations
 
-Proyek ini dilisensikan di bawah ketentuan lisensi internal / proprietary. Seluruh kontribusi kode wajib mematuhi standar pemeriksaan kualitas, lulus seluruh suite pengujian unit, serta mempertahankan rasio kontras aksesibilitas antarmuka.
+- **Credential Sanitization:** RTSP camera URLs are automatically sanitized to remove username/password before storage or display in logs and APIs.
+- **Path Traversal Prevention:** Requests for model files and evidence files are strictly validated against their designated base directories (`MODEL_ROOT` and `EVIDENCE_ROOT`). The use of `..` or malicious path sequences is rejected.
+- **Live Stream Limitations:** Direct camera video streaming through the browser is not yet implemented as a complete end-to-end WebRTC/RTSP decode pipeline; validated production workflows rely on image upload and other supported inspection patterns.
+- **Model Warning:** Activating a model in the interface only indicates that the artefact is available for inference; it does not guarantee the model has been fully validated for production defect detection accuracy.
+
+---
+
+## License & Contribution
+
+This project is licensed under the terms of an internal / proprietary license. All code contributions must comply with quality review standards, pass the full unit-test suite, and maintain traceability for production safety and operational reliability.
+
+---
