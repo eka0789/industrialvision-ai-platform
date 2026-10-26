@@ -6,3 +6,4 @@
 #                           Ultralytics YOLO weights + anomaly extras)
 # ---------------------------------------------------------------------------
 -r requirements-core.txt
+-r requirements-cv.txt

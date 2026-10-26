@@ -17,7 +17,8 @@ htmlcov/
 .env.*
 !.env.example
 
-# Local databases and generated logs
+.tmp/
+.tmp*
 *.db
 *.sqlite
 *.sqlite3

@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 import warnings
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 from starlette.concurrency import run_in_threadpool
@@ -257,6 +258,31 @@ async def inspect_image(
         inspection_session = db.get(InspectionSession, inspection_session.id)
         camera = db.get(Camera, camera_id)
         return _finish_error(db, inspection, inspection_session, camera, "inference_failed", str(exc))
+
+
+@router.get("/{inspection_id}/evidence", response_class=FileResponse)
+def get_inspection_evidence(
+    inspection_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_roles(Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER)),
+) -> FileResponse:
+    inspection = db.get(Inspection, inspection_id)
+    if inspection is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
+    if not inspection.evidence_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection evidence not found")
+    try:
+        evidence = EvidenceStorage().resolve(inspection.evidence_path)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection evidence not found") from exc
+    media_types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+    return FileResponse(
+        evidence,
+        media_type=media_types.get(evidence.suffix.casefold(), "application/octet-stream"),
+        filename=f"inspection-{inspection.id}{evidence.suffix.casefold()}",
+        content_disposition_type="inline",
+        headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("", response_model=InspectionPage)

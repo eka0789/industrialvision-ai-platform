@@ -123,6 +123,15 @@ class InspectionApiTests(unittest.TestCase):
         self.assertTrue(evidence.is_file())
         self.assertEqual(evidence.read_bytes(), self.jpeg_bytes())
 
+        response = self.client.get(f"/inspections/{payload.id}/evidence", headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.content, self.jpeg_bytes())
+        self.assertEqual(response.headers["content-type"], "image/jpeg")
+        self.assertIn("inline", response.headers["content-disposition"])
+        self.assertEqual(response.headers["x-content-type-options"], "nosniff")
+        self.assertEqual(self.client.get(f"/inspections/{payload.id}/evidence").status_code, 401)
+        self.assertEqual(self.client.get("/inspections/99999/evidence", headers=self.headers).status_code, 404)
+
     def test_defect_result_and_detection_rows_are_persisted(self):
         result = InferenceResult(
             detections=[DetectionPrediction(label="scratch", confidence=0.91, bbox=(1, 2, 8, 9))],

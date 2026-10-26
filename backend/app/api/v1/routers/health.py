@@ -10,15 +10,15 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.db.session import SessionLocal, engine
-from app.core.logging_utils import redact
 
 router = APIRouter(prefix="/health", tags=["system"])
 
 
 def _db_ok() -> bool:
     try:
-        with closing(SessionLocal()).connection():
-            return True
+        with closing(SessionLocal()) as session:
+            with session.connection():
+                return True
     except Exception:
         return False
 
@@ -37,14 +37,12 @@ def _port_open(host: str, port: int, timeout: float = 1.0) -> bool:
 def health():
     db_status = "ok" if _db_ok() else "degraded"
     return JSONResponse(
-        content=redact(
-            {
-                "status": "ok" if (db_status == "ok" and _port_open(settings.HOST, settings.PORT)) else "degraded",
-                "environment": settings.APP_ENV,
-                "version": settings.VERSION,
-                "database": db_status,
-                "camera_connections": 0,
-            }
-        ),
+        content={
+            "status": "ok" if (db_status == "ok" and _port_open(settings.HOST, settings.PORT)) else "degraded",
+            "environment": settings.APP_ENV,
+            "version": settings.VERSION,
+            "database": db_status,
+            "camera_connections": 0,
+        },
         status_code=200,
     )
