@@ -5,6 +5,7 @@ import { systemApi } from '../api'
 import { Brand } from '../components/Brand'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
+import { useLiveFeed } from '../hooks/useLiveFeed'
 import { useToast } from '../hooks/useToast'
 
 const navigation = [
@@ -23,6 +24,12 @@ export default function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const health = useApi(systemApi.health)
+  const { status: liveStatus } = useLiveFeed()
+  const liveLabel = liveStatus === 'live'
+    ? 'Feed langsung aktif'
+    : liveStatus === 'connecting'
+      ? 'Menyambung feed…'
+      : 'Feed langsung nonaktif'
   const items = user?.role === 'admin' ? [...navigation, { to: '/admin', label: 'Akses pengguna', index: '06', icon: Users }] : navigation
 
   const closeMenu = () => setMenuOpen(false)
@@ -65,6 +72,9 @@ export default function AppShell() {
           <button className="icon-button menu-toggle" aria-label="Buka navigasi" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={22} /></button>
           <div className="topbar-path"><span>IV / </span><strong>{items.find((item) => item.to === location.pathname)?.label ?? 'Ruang kendali'}</strong></div>
           <div className="topbar-right">
+            <span className={`live-status ${liveStatus === 'live' ? 'live-status--on' : ''}`} role="status" title={liveLabel}>
+              <i aria-hidden="true" /><span>{liveLabel}</span>
+            </span>
             <button className={`api-status ${health.data?.status === 'ok' ? 'api-status--online' : ''}`} onClick={health.reload} title="Periksa ulang koneksi API">
               <i aria-hidden="true" /><span>{health.isLoading ? 'Memeriksa API' : health.data?.status === 'ok' ? 'Sistem terhubung' : health.data ? 'Sistem perlu perhatian' : 'API tidak terhubung'}</span><span className="topbar-version">v{health.data?.version ?? '—'}</span>
             </button>

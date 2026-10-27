@@ -184,3 +184,17 @@
 .not-found-code { margin-top: 20px; color: #dbe2cf; font-family: var(--display); font-size: clamp(120px, 18vw, 220px); font-weight: 500; line-height: 0.9; letter-spacing: -12px; }
 .not-found h1 { margin: 24px 0 12px; font-size: 35px; font-weight: 500; letter-spacing: -1px; }
 .not-found > p:not(.eyebrow) { margin-bottom: 26px; color: var(--muted); font-size: 12px; }
+
+/* Live feed indicators (WebSocket /ws/inspections/live) */
+.live-chip { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 3px 9px; border: 1px solid var(--accent); color: var(--ink); background: var(--accent-soft, #eef7d8); font-size: 9px; font-weight: 800; letter-spacing: 1.5px; vertical-align: middle; }
+.live-chip i { width: 6px; height: 6px; border-radius: 50%; background: #5f8f2e; animation: live-pulse 1.6s ease-in-out infinite; }
+.live-status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.live-status i { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: #ad705c; }
+.live-status--on { color: var(--ink); }
+.live-status--on i { background: #6e943c; box-shadow: 0 0 0 3px #e0e9d4; animation: live-pulse 1.6s ease-in-out infinite; }
+.new-results-chip { padding: 5px 10px; border: 1px dashed var(--accent); background: var(--accent-soft, #eef7d8); color: var(--ink); font-size: 10px; font-weight: 700; cursor: pointer; }
+.new-results-chip:hover { border-style: solid; }
+.panel-header-side { display: inline-flex; align-items: center; gap: 12px; }
+@keyframes live-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.72); } }
+@media (prefers-reduced-motion: reduce) { .live-chip i, .live-status--on i { animation: none; } }
+

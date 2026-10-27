@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     EVIDENCE_ROOT: str = "data/evidence"
     SAMPLE_MEDIA_DIR: str = "data/samples"
 
+    # Demo live feed: fabricates realistic inspections for simulated cameras and
+    # broadcasts them over /ws/inspections/live. Always off when APP_ENV=test.
+    DEMO_LIVE_FEED: bool = True
+    DEMO_FEED_INTERVAL_SECONDS: float = Field(default=6.0, gt=0.0, le=3600.0)
+
     MODEL_ROOT: str = "models"
     DEFAULT_ONNX_MODEL: str = "model.onnx"
     ONNX_DEVICE: Literal["cpu", "cuda"] = "cpu"

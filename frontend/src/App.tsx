@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 import { AuthProvider } from './hooks/useAuth'
+import { LiveFeedProvider } from './hooks/useLiveFeed'
 import { ToastProvider } from './hooks/useToast'
 import { RequireAuth, RequireRole } from './components/AuthGuard'
 
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <LiveFeedProvider>
         <ToastProvider>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
@@ -46,6 +48,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </ToastProvider>
+        </LiveFeedProvider>
       </AuthProvider>
     </BrowserRouter>
   )

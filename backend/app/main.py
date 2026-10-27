@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,17 @@ from app.api.v1.routers.inspections.inspection import router as inspections_rout
 from app.api.v1.routers.models import router as models_router
 from app.api.v1.routers.websockets import router as websockets_router
 from app.core.config import settings
+from app.services.live_feed import live_feed
+
+
+@contextlib.asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if settings.DEMO_LIVE_FEED and settings.APP_ENV.casefold() != "test":
+        live_feed.start()
+    try:
+        yield
+    finally:
+        await live_feed.stop()
 
 
 def create_app() -> FastAPI:
@@ -25,6 +38,7 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
+        lifespan=lifespan,
     )
 
     # CORS

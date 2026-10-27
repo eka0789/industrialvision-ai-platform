@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ArrowRight, Cctv, History, Pencil, Plus, Power, Search, Unplug } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { cameraApi } from '../api'
 import { Button, EmptyState, ErrorState, LoadingBlock, Modal, PageHeader, StatusBadge } from '../components/Ui'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
+import { useLiveFeed } from '../hooks/useLiveFeed'
 import { useToast } from '../hooks/useToast'
 import type { Camera as CameraType, CameraInput } from '../types'
 import { cameraCode, formatDate, sourceLabels } from '../utils/format'
@@ -20,6 +21,27 @@ export default function CamerasPage() {
   const [formCamera, setFormCamera] = useState<CameraType | null | undefined>(undefined)
   const [search, setSearch] = useState('')
   const resource = useApi(cameraApi.list)
+  const { status: liveStatus, onInspection } = useLiveFeed()
+  const resourceRef = useRef(resource)
+  useEffect(() => { resourceRef.current = resource })
+
+  // Status operasional stasiun menyegarkan dirinya: refresh berkala plus
+  // pembaruan langsung setiap kali event inspeksi masuk lewat feed WS.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') resourceRef.current.reload()
+    }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => onInspection((inspection) => {
+    const current = resourceRef.current.data
+    if (!current) return
+    resourceRef.current.setData(current.map((camera) => camera.id === inspection.camera_id
+      ? { ...camera, status: 'connected', last_inspection_at: inspection.timestamp }
+      : camera))
+  }), [onInspection])
+
   const cameras = resource.data?.filter((camera) => `${camera.name} ${camera.camera_identity ?? ''} ${cameraCode(camera.id)}`.toLowerCase().includes(search.toLowerCase())) ?? []
   const canAdmin = user?.role === 'admin'
 
@@ -30,7 +52,7 @@ export default function CamerasPage() {
       <PageHeader eyebrow="FLEET / INSPECTION STATIONS" title={<>Setiap stasiun.<br /><span className="text-muted">Satu standar.</span></>}
         description="Kelola titik inspeksi, sumber gambar, dan status operasional dari satu tempat."
         actions={canAdmin ? <Button onClick={() => setFormCamera(null)}><Plus size={17} />Tambah stasiun</Button> : undefined} />
-      <div className="toolbar"><label className="search-box"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama atau kode stasiun…" aria-label="Cari stasiun" />{search && <kbd>{cameras.length}</kbd>}</label><span className="toolbar-meta">{resource.data?.length ?? 0} STASIUN TERDAFTAR</span></div>
+      <div className="toolbar"><label className="search-box"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama atau kode stasiun…" aria-label="Cari stasiun" />{search && <kbd>{cameras.length}</kbd>}</label><span className="toolbar-meta">{liveStatus === 'live' && <span className="live-chip"><i aria-hidden="true" />LIVE</span>}{resource.data?.length ?? 0} STASIUN TERDAFTAR</span></div>
       {resource.isLoading && <LoadingBlock label="Mengambil data stasiun…" />}
       {resource.error && <ErrorState message={resource.error} retry={resource.reload} />}
       {!resource.isLoading && !resource.error && !cameras.length && <EmptyState title={search ? 'Stasiun tidak ditemukan' : 'Belum ada stasiun kerja'} description={search ? 'Coba kata kunci lain atau hapus pencarian.' : canAdmin ? 'Buat stasiun dengan sumber unggah gambar untuk memulai inspeksi pertama.' : 'Administrator perlu menambahkan stasiun sebelum inspeksi dapat dijalankan.'} action={search ? <Button variant="secondary" onClick={() => setSearch('')}>Hapus pencarian</Button> : canAdmin ? <Button onClick={() => setFormCamera(null)}><Plus size={17} />Tambah stasiun</Button> : undefined} />}
@@ -47,7 +69,7 @@ export default function CamerasPage() {
           ))}
         </div>
       )}
-      <p className="page-footnote"><span>*</span> Status koneksi pada API bersifat administratif. Pratinjau streaming langsung belum tersedia di antarmuka ini.</p>
+      <p className="page-footnote"><span>*</span> Status stasiun diperbarui otomatis setiap ada inspeksi baru masuk. Pratinjau streaming video langsung belum tersedia di antarmuka ini.</p>
       {selectedId && <CameraDetailModal id={selectedId} onClose={closeDetail} onChanged={resource.reload} onEdit={(camera) => { closeDetail(); setFormCamera(camera) }} canAdmin={canAdmin} canOperate={user?.role !== 'ai_engineer'} />}
       {formCamera !== undefined && <CameraFormModal camera={formCamera} onClose={() => setFormCamera(undefined)} onSaved={() => { setFormCamera(undefined); resource.reload(); toast(formCamera ? 'Perubahan stasiun disimpan.' : 'Stasiun baru berhasil ditambahkan.') }} />}
     </div>

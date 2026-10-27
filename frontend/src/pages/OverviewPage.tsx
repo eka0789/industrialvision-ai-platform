@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, ArrowUpRight, Camera, Check, CircleAlert, ScanSearch, Settings2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cameraApi, inspectionApi } from '../api'
@@ -5,17 +6,55 @@ import { InspectionTable } from '../components/InspectionTable'
 import { EmptyState, ErrorState, LoadingBlock, PageHeader, StatusBadge } from '../components/Ui'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
-import type { Decision } from '../types'
+import { useLiveFeed } from '../hooks/useLiveFeed'
+import type { Camera as CameraType, Decision, Inspection } from '../types'
 import { cameraCode, formatDate, formatPercent } from '../utils/format'
 
 export default function OverviewPage() {
   const { user } = useAuth()
+  const { status: liveStatus, onInspection } = useLiveFeed()
   const { data, error, isLoading, reload } = useApi(() => Promise.all([
     cameraApi.list(), inspectionApi.list({ page_size: 100 }),
   ]), [])
-  const cameras = data?.[0] ?? []
+  const [liveItems, setLiveItems] = useState<Inspection[]>([])
+  const [cameraPatches, setCameraPatches] = useState<Record<number, Partial<CameraType>>>({})
+
+  useEffect(() => onInspection((inspection) => {
+    setLiveItems((items) => [inspection, ...items].slice(0, 100))
+    setCameraPatches((patches) => ({
+      ...patches,
+      [inspection.camera_id]: { last_inspection_at: inspection.timestamp, status: 'connected' },
+    }))
+  }), [onInspection])
+
+  const refreshAll = () => {
+    setLiveItems([])
+    setCameraPatches({})
+    reload()
+  }
+
+  const baseCameras = useMemo(
+    () => (data?.[0] ?? []).map((camera) => {
+      const patch = cameraPatches[camera.id]
+      return patch ? { ...camera, ...patch } : camera
+    }),
+    [data, cameraPatches],
+  )
   const history = data?.[1]
-  const inspections = history?.items ?? []
+  const baseInspections = useMemo(() => history?.items ?? [], [history])
+  const inspections = useMemo(() => {
+    const seen = new Set<number>()
+    const merged: Inspection[] = []
+    for (const item of [...liveItems, ...baseInspections]) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      merged.push(item)
+    }
+    return merged
+  }, [liveItems, baseInspections])
+  const liveCount = inspections.length - baseInspections.length
+  const totalInspections = (history?.total ?? 0) + Math.max(0, liveCount)
+  const cameras = baseCameras
   const sampleCounts = inspections.reduce<Record<Decision, number>>((counts, inspection) => {
     counts[inspection.decision] += 1
     return counts
@@ -30,12 +69,12 @@ export default function OverviewPage() {
         description={`Selamat datang, ${user?.username}. Berikut aktivitas quality inspection Anda.`}
         actions={<Link to="/inspections/new" className="button button--primary"><ScanSearch size={17} />Mulai inspeksi<ArrowUpRight size={16} /></Link>} />
       {isLoading && <LoadingBlock label="Menyusun data operasional…" />}
-      {error && <ErrorState message={error} retry={reload} />}
+      {error && <ErrorState message={error} retry={refreshAll} />}
       {!isLoading && !error && history && (
         <>
           <section className="overview-hero" aria-label="Ringkasan kualitas">
             <div className="overview-hero-copy">
-              <p className="eyebrow eyebrow--light"><span />QUALITY / AT A GLANCE</p>
+              <p className="eyebrow eyebrow--light"><span />QUALITY / AT A GLANCE {liveStatus === 'live' && <span className="live-chip"><i aria-hidden="true" />LIVE</span>}</p>
               <h2>{inspections.length ? <>Mutu terlihat.<br /><em>Keputusan terukur.</em></> : <>Setiap keputusan<br /><em>dimulai di sini.</em></>}</h2>
               <p className="hero-description">{inspections.length ? 'Pantau hasil, telusuri bukti, dan ambil tindakan dari satu ruang kerja.' : 'Hubungkan stasiun, pilih model, lalu jalankan inspeksi gambar pertama Anda.'}</p>
               <Link className="hero-link" to={inspections.length ? '/inspections' : '/inspections/new'}>{inspections.length ? 'Telusuri seluruh inspeksi' : 'Jalankan inspeksi pertama'}<ArrowRight size={17} /></Link>
@@ -56,11 +95,11 @@ export default function OverviewPage() {
                 <div className="quality-ring-text"><strong>{inspections.length ? formatPercent(passRatio) : '—'}</strong><span>{inspections.length ? 'LULUS' : 'MENUNGGU DATA'}</span></div>
                 <span className="quality-cross quality-cross--one" aria-hidden="true">+</span><span className="quality-cross quality-cross--two" aria-hidden="true">+</span>
               </div>
-              <p>{inspections.length ? `Dari ${inspections.length} inspeksi terbaru${history.total > inspections.length ? ` / ${history.total} total` : ''}. Bukan metrik fleet-wide.` : 'Rasio akan dihitung dari hasil inspeksi nyata.'}</p>
+              <p>{inspections.length ? `Dari ${inspections.length} inspeksi terbaru${totalInspections > inspections.length ? ` / ${totalInspections} total` : ''}. Bukan metrik fleet-wide.` : 'Rasio akan dihitung dari hasil inspeksi nyata.'}</p>
             </div>
           </section>
           <section className="metrics-grid" aria-label="Metrik operasional">
-            <div className="metric-card"><span className="metric-index">01 / TOTAL</span><ScanSearch size={20} /><strong>{history.total.toLocaleString('id-ID')}</strong><h3>Total inspeksi</h3><p>Seluruh catatan di database</p></div>
+            <div className="metric-card"><span className="metric-index">01 / TOTAL</span><ScanSearch size={20} /><strong>{totalInspections.toLocaleString('id-ID')}</strong><h3>Total inspeksi</h3><p>Seluruh catatan di database</p></div>
             <div className="metric-card"><span className="metric-index">02 / FLEET</span><Camera size={20} /><strong>{connected}<small> / {cameras.length}</small></strong><h3>Stasiun terhubung</h3><p>Status koneksi administratif</p></div>
             <div className="metric-card metric-card--warning"><span className="metric-index">03 / REVIEW</span><CircleAlert size={20} /><strong>{inspections.length ? sampleCounts.REVIEW : '—'}</strong><h3>Perlu tinjauan</h3><p>Dalam {inspections.length || 0} sampel terbaru</p></div>
             <div className="metric-card metric-card--danger"><span className="metric-index">04 / REJECT</span><CircleAlert size={20} /><strong>{inspections.length ? sampleCounts.FAIL : '—'}</strong><h3>Keputusan gagal</h3><p>Dalam {inspections.length || 0} sampel terbaru</p></div>

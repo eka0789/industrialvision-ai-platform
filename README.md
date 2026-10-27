@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.13-1c211b?style=for-the-badge&logo=fastapi&logoColor=009688" alt="Backend" />
   <img src="https://img.shields.io/badge/Database-SQLite%20%2F%20PostgreSQL%2016-1c211b?style=for-the-badge&logo=postgresql&logoColor=4169e1" alt="Database" />
   <img src="https://img.shields.io/badge/Accessibility-WCAG%202.1%20AA%20Compliant-1c211b?style=for-the-badge&logoColor=d6f779" alt="WCAG AA" />
-  <img src="https://img.shields.io/badge/Tests-212%20Passing-1c211b?style=for-the-badge&logoColor=d6f779" alt="Tests" />
+  <img src="https://img.shields.io/badge/Tests-223%20Passing-1c211b?style=for-the-badge&logoColor=d6f779" alt="Tests" />
 </p>
 
 **IndustrialVision AI** is a computer-vision-based visual inspection platform for manufacturing and quality control environments. The system integrates image testing, AI model management, operator workflows, and evidence logging to support decision-making on the production floor.
@@ -179,6 +179,32 @@ The system will prompt for a password interactively (minimum 12 characters requi
 > **Important Note About Admin Accounts:**  
 > The command `python -m app.cli create-admin` can only be run once during initial installation. If the database already contains an admin, additional user creation (operators, engineers, or admin accounts) must be performed through the web UI or admin user-management API.
 
+#### Populate Demo Data (Optional, Recommended for Demos/Development)
+
+To fill the database with a complete, realistic dummy dataset — demo accounts, production lines, inspection stations, the AI model registry with evaluation history, hundreds of inspection records with synthetic evidence images, system events, and audit logs — run:
+
+```bash
+python -m app.seed --reset
+```
+
+This also activates the **live feed**: a backend background task generates a new inspection every few seconds for simulated stations, so the dashboard ticks in real time (marked by the **LIVE** indicator in the web console). Additional flags:
+
+```bash
+python -m app.seed --append                # add inspections without wiping data
+python -m app.seed --reset --inspections 500 --hours 168   # a larger dataset (7 days)
+python -m app.seed --reset --no-evidence   # skip evidence images (faster)
+```
+
+**Demo accounts created by the seeder:**
+
+| Username | Password | Role |
+| --- | --- | --- |
+| `admin` | `Admin!Vision2026` | admin |
+| `operator1` | `Operator!2026` | operator |
+| `aiengineer` | `Engineer!2026` | ai_engineer |
+
+> ⚠️ These demo credentials are for development environments only. Disable the live feed with `DEMO_LIVE_FEED=false` and replace all demo accounts before using the system anywhere else.
+
 ### 4. Running the Backend API
 
 From the `backend` folder:
@@ -239,7 +265,7 @@ industrialvision-ai-platform/
 │   │   ├── services/           # Business logic: decision engine, evidence storage, camera worker
 │   │   └── vision/             # Inference adapters (ONNX Runtime, YOLO, PatchCore/PaDiM)
 │   ├── migrations/             # Alembic migration environment
-│   ├── tests/                  # 212 unit and integration tests using unittest
+│   ├── tests/                  # 223 unit and integration tests using unittest
 │   ├── alembic.ini             # Database migration configuration
 │   ├── Dockerfile              # Multi-stage backend container build (non-root appuser)
 │   └── requirements.txt        # Unified Python dependencies
@@ -296,6 +322,22 @@ All business endpoints require the `Authorization: Bearer <token_jwt>` header un
 | **Models** | `GET` | `/models/{id}/evaluations` | All Roles | Evaluation performance history of the model. |
 | **Admin** | `POST` | `/admin/users` | `admin` | Create a new operator or engineer account. |
 | **Stream** | `WS` | `/ws/cameras/{id}/stream` | Valid JWT | Stream realtime camera metadata events. |
+| **Stream** | `WS` | `/ws/inspections/live` | Valid JWT | Live feed of all inspection decisions (event bus). |
+
+#### `WS /ws/inspections/live` Message Format
+
+Authenticate via query token: `ws://host/ws/inspections/live?token=<jwt>`. Messages sent by the server:
+
+```jsonc
+// When the connection is accepted
+{"type": "connected", "timestamp": 1769515200.1}
+// Every time an inspection decision is stored (real pipeline or demo live feed)
+{"type": "inspection.created", "inspection": {"id": 243, "decision": "PASS", "camera_id": 4, "detections": [], "anomaly": {"score": 0.21}, "latency_ms": 87.3, "timestamp": "2026-10-27T00:41:31.136064", "...": "..."}}
+// Periodic heartbeat while there are no events
+{"type": "heartbeat", "timestamp": 1769515215.1}
+```
+
+The web console subscribes to this feed through `LiveFeedProvider`: the Overview, History, and Stations pages update their data live without a reload, marked by the **LIVE** indicator.
 
 ---
 
@@ -314,6 +356,15 @@ All business endpoints require the `Authorization: Bearer <token_jwt>` header un
 | `MAX_UPLOAD_BYTES` | Max allowed image file size in bytes. | `104857600` (100 MB) | Optional |
 | `EVIDENCE_ROOT` | Physical storage directory for visual evidence. | `data/evidence` | Optional |
 | `MODEL_ROOT` | Storage directory for model artefacts. | `models` | Optional |
+| `DEMO_LIVE_FEED` | Enables realtime simulated inspections for `simulated` stations (automatically disabled when `APP_ENV=test`). | `true` | Disable in production |
+| `DEMO_FEED_INTERVAL_SECONDS` | Delay between inspections generated by the live feed. | `6` | Optional |
+
+Frontend variables (`frontend/.env` file):
+
+| Variable | Description | Default |
+|---|---|---|
+| `VITE_API_BASE_URL` | REST API base URL. | `/api/v1` (via Vite proxy) |
+| `VITE_WS_URL` | Base URL of the live WebSocket feed. | Browser protocol & host (`ws(s)://location.host`) |
 
 ---
 
@@ -322,7 +373,7 @@ All business endpoints require the `Authorization: Bearer <token_jwt>` header un
 This project uses strict validation before code can be merged or released:
 
 ```bash
-# 1. Run the 212 backend unit and integration tests
+# 1. Run the 223 backend unit and integration tests
 cd backend
 python -m unittest discover -s tests -v
 
@@ -337,7 +388,7 @@ npm --prefix frontend run build
 ```
 
 Latest verification results:
-- **Backend:** 212 tests passing (0 failed, 0 errors).
+- **Backend:** 223 tests passing (0 failed, 0 errors).
 - **Frontend build:** Production bundle compiles cleanly without type errors.
 - **Accessibility:** 0 WCAG 2.1 AA violations across the main routes.
 - **Responsiveness:** 0 horizontal overflow on 390 px mobile viewport tests.

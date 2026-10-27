@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
@@ -13,6 +14,8 @@ from app.core.jwt import decode_token
 from app.db.session import SessionLocal
 from app.db.models import Camera, User
 from app.services.camera import CameraStreamer
+from app.services.event_bus import event_bus
+from app.services.live_feed import TOPIC_INSPECTIONS
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
 
@@ -86,9 +89,10 @@ async def inspection_events(
     token: Optional[str] = Query(None),
 ):
     """Subscribe to inspection result events across all cameras.
-    
+
     Authentication via ?token=<jwt>
-    Sends: {inspection_id, camera_id, decision, timestamp, detections?, anomaly?}
+    Messages: {"type": "connected"} then {"type": "inspection.created", inspection: {...}}
+    plus periodic {"type": "heartbeat", timestamp}.
     """
     db = SessionLocal()
     try:
@@ -98,15 +102,22 @@ async def inspection_events(
             return
 
         await websocket.accept()
-        
+        await websocket.send_json({"type": "connected", "timestamp": time.time()})
+        queue = event_bus.subscribe(TOPIC_INSPECTIONS)
+
         try:
-            # ponytail: real implementation subscribes to inspection event queue/pubsub
-            # For now, heartbeat only
             while True:
-                await asyncio.sleep(10)
-                await websocket.send_json({"type": "heartbeat", "timestamp": asyncio.get_event_loop().time()})
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    await websocket.send_json(payload)
+                except asyncio.TimeoutError:
+                    await websocket.send_json({"type": "heartbeat", "timestamp": time.time()})
         except WebSocketDisconnect:
             pass
+        except Exception:
+            pass
+        finally:
+            event_bus.unsubscribe(TOPIC_INSPECTIONS, queue)
 
     finally:
         db.close()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 import warnings
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -30,7 +30,10 @@ from app.db.session import get_db
 from app.schemas.inspection import InspectionOut, InspectionPage
 from app.services.decision import decide_inspection
 from app.services.evidence import EvidenceStorage
+from app.services.event_bus import event_bus
 from app.services.inspection_manager import _rules_for_model
+from app.services.inspection_serializer import serialize_inspection as _serialize_inspection
+from app.services.live_feed import InspectionOutDump, TOPIC_INSPECTIONS
 from app.vision.contracts import InferenceResult
 from app.vision.factory import create_detection_engine
 
@@ -45,45 +48,6 @@ _IMAGE_TYPES = {
         lambda content: len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP",
     ),
 }
-
-
-def _serialize_inspection(inspection: Inspection) -> dict[str, Any]:
-    detections = [
-        {
-            "label": row.label,
-            "confidence": row.confidence,
-            "bbox": row.bbox_json,
-            "area": row.area,
-        }
-        for row in inspection.detections
-    ]
-    anomaly = None
-    if inspection.anomaly is not None:
-        anomaly = {
-            "score": inspection.anomaly.score,
-            "heatmap_path": inspection.anomaly.heatmap_path,
-            "threshold": inspection.anomaly.threshold,
-        }
-    metadata = inspection.metadata_json or {}
-    return {
-        "id": inspection.id,
-        "timestamp": inspection.created_at,
-        "camera_id": inspection.camera_id,
-        "session_id": inspection.session_id,
-        "product_id": inspection.product_id,
-        "batch_id": inspection.batch_id,
-        "model_name": inspection.model_name,
-        "model_version": inspection.model_version,
-        "detections": detections,
-        "anomaly": anomaly,
-        "decision": inspection.decision,
-        "decision_reason": metadata.get("decision_reason"),
-        "latency_ms": inspection.latency_ms,
-        "evidence_path": inspection.evidence_path,
-        "error_status": inspection.error_status,
-        "error_message": inspection.error_message,
-        "metadata": metadata,
-    }
 
 
 def _decode_uploaded_image(upload: UploadFile, content: bytes):
@@ -147,6 +111,7 @@ def _finish_error(
     camera.last_error = safe_message
     db.commit()
     db.refresh(inspection)
+    event_bus.publish(TOPIC_INSPECTIONS, InspectionOutDump(inspection))
     return InspectionOut.model_validate(_serialize_inspection(inspection))
 
 
@@ -251,6 +216,7 @@ async def inspect_image(
         camera.last_error = None
         db.commit()
         db.refresh(inspection)
+        event_bus.publish(TOPIC_INSPECTIONS, InspectionOutDump(inspection))
         return InspectionOut.model_validate(_serialize_inspection(inspection))
     except Exception as exc:
         db.rollback()
