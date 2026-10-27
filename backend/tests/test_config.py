@@ -55,12 +55,36 @@ class SettingsTests(unittest.TestCase):
         config = self.make_settings(
             APP_ENV="production",
             DEBUG=False,
+            DEMO_LIVE_FEED=False,
             JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
             DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
             CORS_ORIGINS="https://inspection.example",
         )
         self.assertEqual(config.APP_ENV, "production")
         self.assertEqual(config.cors_origins, ["https://inspection.example"])
+
+    def test_production_refuses_demo_live_feed(self):
+        with self.assertRaises(ValidationError):
+            self.make_settings(
+                APP_ENV="production",
+                DEBUG=False,
+                DEMO_LIVE_FEED=True,
+                JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
+                DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+                CORS_ORIGINS="https://inspection.example",
+            )
+
+    def test_production_refuses_debug_log_level(self):
+        with self.assertRaises(ValidationError):
+            self.make_settings(
+                APP_ENV="production",
+                DEBUG=False,
+                DEMO_LIVE_FEED=False,
+                LOG_LEVEL="debug",
+                JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
+                DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+                CORS_ORIGINS="https://inspection.example",
+            )
 
     def test_production_rejects_example_secret_placeholder(self):
         with self.assertRaises(ValidationError):

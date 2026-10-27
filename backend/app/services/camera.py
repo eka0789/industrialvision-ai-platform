@@ -163,6 +163,7 @@ class CameraStreamer:
         websocket: WebSocket,
         inference: bool = True,
         session_id: int | None = None,
+        subprotocol: str | None = None,
     ) -> None:
         """WebSocket streaming loop with optional ONNX inference."""
         if not self.running:
@@ -174,7 +175,7 @@ class CameraStreamer:
         inference_engine = get_inference() if inference else None
         interval = 1.0 / settings.FPS_INPUT if settings.FPS_INPUT else 0.04
 
-        await websocket.accept()
+        await websocket.accept(subprotocol=subprotocol)
 
         try:
             while self.running:

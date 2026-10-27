@@ -1,0 +1,6 @@
+# Preserve LF line endings for shell scripts and Docker entrypoints so Windows checkouts don't break in Linux containers
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+Dockerfile* text eol=lf
+nginx.conf text eol=lf
+*.inc text eol=lf

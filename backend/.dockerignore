@@ -20,7 +20,17 @@ coverage.xml
 .gitignore
 .mypy_cache
 .pytest_cache
+.ruff_cache
+
+# Local secrets, databases, and generated evidence must never enter the image.
+.env
+.env.*
 *.db
 *.sqlite3
-data/evidence/*
-!data/evidence/.gitkeep
+data/
+models/
+
+# Test, benchmark, and operator-only tooling is not part of the runtime image.
+tests/
+benchmarks/
+install_cv.log

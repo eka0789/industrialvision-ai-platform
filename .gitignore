@@ -47,3 +47,5 @@ coverage/
 # OS metadata
 .DS_Store
 Thumbs.db
+deploy/tls/*.crt
+deploy/tls/*.key

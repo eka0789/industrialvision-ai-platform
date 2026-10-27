@@ -44,9 +44,17 @@ class Settings(BaseSettings):
     SAMPLE_MEDIA_DIR: str = "data/samples"
 
     # Demo live feed: fabricates realistic inspections for simulated cameras and
-    # broadcasts them over /ws/inspections/live. Always off when APP_ENV=test.
+    # broadcasts them over /ws/inspections/live. Refused at startup in production.
     DEMO_LIVE_FEED: bool = True
     DEMO_FEED_INTERVAL_SECONDS: float = Field(default=6.0, gt=0.0, le=3600.0)
+
+    # Refresh tokens: long-lived per shift, rotated on every use, revocable.
+    REFRESH_TOKEN_EXPIRE_HOURS: int = Field(default=12, ge=1, le=72)
+    # Max failed logins per account within the lockout window before temporary lock.
+    LOGIN_MAX_FAILURES: int = Field(default=5, ge=1, le=100)
+    LOGIN_LOCKOUT_MINUTES: int = Field(default=15, ge=1, le=1440)
+    # Set true when TLS terminates in front of the app (honours X-Forwarded-Proto).
+    TRUST_PROXY_HEADERS: bool = False
 
     MODEL_ROOT: str = "models"
     DEFAULT_ONNX_MODEL: str = "model.onnx"
@@ -84,6 +92,10 @@ class Settings(BaseSettings):
                 raise ValueError("Wildcard CORS origins are not allowed in production")
             if url.get_backend_name() != "postgresql":
                 raise ValueError("Production DATABASE_URL must use PostgreSQL")
+            if self.DEMO_LIVE_FEED:
+                raise ValueError("DEMO_LIVE_FEED must be false in production")
+            if self.LOG_LEVEL.upper() == "DEBUG":
+                raise ValueError("LOG_LEVEL=DEBUG is not allowed in production (may log sensitive data)")
 
         return self
 

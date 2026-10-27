@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { authApi } from '../api'
-import { clearAccessToken, getAccessToken, saveAccessToken } from '../api/client'
+import { clearTokens, getAccessToken, saveTokens } from '../api/client'
 import type { User } from '../types'
 
 interface AuthContextValue {
@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!getAccessToken()) return
     authApi.me()
       .then((currentUser) => { if (active) setUser(currentUser) })
-      .catch(() => { if (active) clearAccessToken() })
+      .catch(() => { if (active) clearTokens() })
       .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
   }, [])
@@ -45,13 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionExpired,
     login: async (username, password, remember) => {
       const response = await authApi.login(username, password)
-      saveAccessToken(response.token.access_token, remember)
+      saveTokens(response.token.access_token, response.refresh_token, remember)
       setUser(response.user)
       setSessionExpired(false)
     },
     logout: async () => {
       try { await authApi.logout() } finally {
-        clearAccessToken()
+        clearTokens()
         setUser(null)
         setSessionExpired(false)
       }

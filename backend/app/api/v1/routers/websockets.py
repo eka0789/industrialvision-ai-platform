@@ -20,8 +20,25 @@ from app.services.live_feed import TOPIC_INSPECTIONS
 router = APIRouter(prefix="/ws", tags=["websocket"])
 
 
+AUTH_SUBPROTOCOL_PREFIX = "bearer."
+
+
+def extract_ws_token(websocket: WebSocket, query_token: str | None) -> tuple[str | None, str | None]:
+    """Return (token, negotiated_subprotocol).
+
+    Preferred transport is the ``Sec-WebSocket-Protocol`` header carrying
+    ``bearer.<jwt>``, which keeps credentials out of URLs and access logs.
+    The ``?token=`` query form is still accepted for backwards compatibility
+    but is discouraged and not echoed back.
+    """
+    for proto in websocket.scope.get("subprotocols", []):
+        if proto.startswith(AUTH_SUBPROTOCOL_PREFIX):
+            return proto[len(AUTH_SUBPROTOCOL_PREFIX):], proto
+    return query_token, None
+
+
 async def authenticate_ws(token: str | None, db: Session) -> User | None:
-    """Authenticate WebSocket connection via query token."""
+    """Authenticate WebSocket connection via bearer token."""
     if not token:
         return None
     try:
@@ -45,13 +62,14 @@ async def camera_stream(
     inference: bool = Query(True),
 ):
     """Real-time camera stream with optional inference.
-    
-    Authentication via ?token=<jwt>
+
+    Authentication via ``Sec-WebSocket-Protocol: bearer.<jwt>`` (preferred).
     Sends JSON messages: {camera_id, session_id, frame_id, timestamp, detections?, status}
     """
+    jwt_token, subprotocol = extract_ws_token(websocket, token)
     db = SessionLocal()
     try:
-        user = await authenticate_ws(token, db)
+        user = await authenticate_ws(jwt_token, db)
         if not user:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
             return
@@ -66,9 +84,9 @@ async def camera_stream(
             return
 
         streamer = CameraStreamer(camera, db)
-        
+
         try:
-            await streamer.stream_frames(websocket, inference=inference, session_id=None)
+            await streamer.stream_frames(websocket, inference=inference, session_id=None, subprotocol=subprotocol)
         except WebSocketDisconnect:
             pass
         except Exception as e:
@@ -90,18 +108,19 @@ async def inspection_events(
 ):
     """Subscribe to inspection result events across all cameras.
 
-    Authentication via ?token=<jwt>
+    Authentication via ``Sec-WebSocket-Protocol: bearer.<jwt>`` (preferred).
     Messages: {"type": "connected"} then {"type": "inspection.created", inspection: {...}}
     plus periodic {"type": "heartbeat", timestamp}.
     """
+    jwt_token, subprotocol = extract_ws_token(websocket, token)
     db = SessionLocal()
     try:
-        user = await authenticate_ws(token, db)
+        user = await authenticate_ws(jwt_token, db)
         if not user:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
             return
 
-        await websocket.accept()
+        await websocket.accept(subprotocol=subprotocol)
         await websocket.send_json({"type": "connected", "timestamp": time.time()})
         queue = event_bus.subscribe(TOPIC_INSPECTIONS)
 

@@ -35,6 +35,10 @@ COPY --from=builder /install /usr/local
 # Copy application source code
 COPY --chown=appuser:appuser . /app
 
+# Copy and make entrypoint executable
+COPY --chown=appuser:appuser docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Ensure directories for evidence and models exist with proper ownership
 RUN mkdir -p /app/data/evidence /app/models /app/data/samples && \
     chown -R appuser:appuser /app/data /app/models
@@ -44,11 +48,13 @@ USER appuser
 ENV HOST=0.0.0.0 \
     PORT=8000 \
     APP_ENV=production \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    MIGRATE_ON_START=false
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://127.0.0.1:8000/health || exit 1
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

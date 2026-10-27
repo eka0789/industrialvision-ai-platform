@@ -28,6 +28,14 @@ class TokenRefreshRequest(BaseModel):
     refresh_token: str
 
 
+class TokenRefreshResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    role: str
+    user_id: int
+
+
 class UserRead(BaseModel):
     id: int
     username: str
@@ -38,3 +46,4 @@ class UserRead(BaseModel):
 class LoginResponse(BaseModel):
     token: Token
     user: UserRead
+    refresh_token: str

@@ -46,6 +46,67 @@ jobs:
         run: |
           python -m unittest discover -s tests -v
 
+  backend-integration:
+    name: Backend Integration (PostgreSQL + Alembic)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: industrialvision
+          POSTGRES_USER: iv_user
+          POSTGRES_PASSWORD: StrongTestPassword123!
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U iv_user -d industrialvision"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Alembic migrations against PostgreSQL
+        env:
+          DATABASE_URL: postgresql+psycopg://iv_user:StrongTestPassword123!@localhost:5432/industrialvision
+          APP_ENV: production
+          DEBUG: "false"
+          JWT_SECRET: ci-test-secret-value-that-is-at-least-32-characters-long
+          CORS_ORIGINS: https://ci.example
+          DEMO_LIVE_FEED: "false"
+        run: |
+          alembic upgrade head
+
+      - name: Run Backend tests with PostgreSQL
+        env:
+          DATABASE_URL: postgresql+psycopg://iv_user:StrongTestPassword123!@localhost:5432/industrialvision
+          APP_ENV: production
+          DEBUG: "false"
+          JWT_SECRET: ci-test-secret-value-that-is-at-least-32-characters-long
+          CORS_ORIGINS: https://ci.example
+          DEMO_LIVE_FEED: "false"
+        run: |
+          python -m unittest discover -s tests -v
+
   frontend-checks:
     name: Frontend Lint, Typecheck & Build
     runs-on: ubuntu-latest
@@ -77,12 +138,19 @@ jobs:
           npm run build
 
   docker-compose-validate:
-    name: Docker Compose Syntax Validation
+    name: Docker Compose Syntax & Config Validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Validate Docker Compose Configuration
+        env:
+          JWT_SECRET: ci-test-secret-value-that-is-at-least-32-characters-long
+          POSTGRES_PASSWORD: StrongTestPassword123!
+          TLS_CERT_DIR: ./deploy/tls
+          PUBLIC_HTTPS_PORT: "8443"
+          PUBLIC_HTTP_PORT: "8080"
+          LOG_LEVEL: INFO
         run: |
           docker compose config --quiet

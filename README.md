@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.13-1c211b?style=for-the-badge&logo=fastapi&logoColor=009688" alt="Backend" />
   <img src="https://img.shields.io/badge/Database-SQLite%20%2F%20PostgreSQL%2016-1c211b?style=for-the-badge&logo=postgresql&logoColor=4169e1" alt="Database" />
   <img src="https://img.shields.io/badge/Accessibility-WCAG%202.1%20AA%20Compliant-1c211b?style=for-the-badge&logoColor=d6f779" alt="WCAG AA" />
-  <img src="https://img.shields.io/badge/Tests-223%20Passing-1c211b?style=for-the-badge&logoColor=d6f779" alt="Tests" />
+  <img src="https://img.shields.io/badge/Tests-235%20Passing-1c211b?style=for-the-badge&logoColor=d6f779" alt="Tests" />
 </p>
 
 **IndustrialVision AI** is a computer-vision-based visual inspection platform for manufacturing and quality control environments. The system integrates image testing, AI model management, operator workflows, and evidence logging to support decision-making on the production floor.
@@ -33,6 +33,8 @@
 9. [Environment Variables](#environment-variables)
 10. [Testing & Quality Verification](#testing--quality-verification)
 11. [Docker Compose Deployment](#docker-compose-deployment)
+    - [Startup behaviour](#startup-behaviour)
+    - [Backup & Restore](#backup--restore)
 12. [Troubleshooting](#troubleshooting)
 13. [Security & System Limitations](#security--system-limitations)
 14. [License & Contribution](#license--contribution)
@@ -184,15 +186,18 @@ The system will prompt for a password interactively (minimum 12 characters requi
 To fill the database with a complete, realistic dummy dataset — demo accounts, production lines, inspection stations, the AI model registry with evaluation history, hundreds of inspection records with synthetic evidence images, system events, and audit logs — run:
 
 ```bash
-python -m app.seed --reset
+python -m app.seed --reset --confirm-reset WIPE-ALL-DATA
 ```
+
+`--reset` deletes every table — including user accounts — so it requires the explicit typed
+confirmation shown above, and the whole command refuses to run under `APP_ENV=production`.
 
 This also activates the **live feed**: a backend background task generates a new inspection every few seconds for simulated stations, so the dashboard ticks in real time (marked by the **LIVE** indicator in the web console). Additional flags:
 
 ```bash
 python -m app.seed --append                # add inspections without wiping data
-python -m app.seed --reset --inspections 500 --hours 168   # a larger dataset (7 days)
-python -m app.seed --reset --no-evidence   # skip evidence images (faster)
+python -m app.seed --reset --confirm-reset WIPE-ALL-DATA --inspections 500 --hours 168
+python -m app.seed --reset --confirm-reset WIPE-ALL-DATA --no-evidence   # skips images (faster)
 ```
 
 **Demo accounts created by the seeder:**
@@ -265,16 +270,18 @@ industrialvision-ai-platform/
 │   │   ├── services/           # Business logic: decision engine, evidence storage, camera worker
 │   │   └── vision/             # Inference adapters (ONNX Runtime, YOLO, PatchCore/PaDiM)
 │   ├── migrations/             # Alembic migration environment
-│   ├── tests/                  # 223 unit and integration tests using unittest
+│   ├── tests/                  # 235 unit and integration tests using unittest
 │   ├── alembic.ini             # Database migration configuration
+│   ├── docker-entrypoint.sh    # Runs `alembic upgrade head` before serving traffic
+│   ├── seed.py                 # Demo dataset seeder (blocked under APP_ENV=production)
 │   ├── Dockerfile              # Multi-stage backend container build (non-root appuser)
 │   └── requirements.txt        # Unified Python dependencies
 ├── frontend/                   # Operator console web app
 │   ├── public/                 # Favicon and static assets
 │   ├── src/
-│   │   ├── api/                # HTTP client with JWT bearer interceptor and auto-logout
+│   │   ├── api/                # HTTP client with JWT bearer interceptor and silent refresh
 │   │   ├── components/         # UI components: Brand, EvidenceImage, InspectionTable, Modal, etc.
-│   │   ├── hooks/              # Custom hooks: useAuth, useApi, useToast
+│   │   ├── hooks/              # Custom hooks: useAuth, useApi, useToast, useLiveFeed
 │   │   ├── layouts/            # AppShell with industrial navigation and mobile drawer
 │   │   ├── pages/              # Pages: Overview, NewInspection, History, Cameras, Models, Admin
 │   │   ├── styles/             # Design system modules: app.css, pages.css, responsive.css
@@ -283,10 +290,13 @@ industrialvision-ai-platform/
 │   │   ├── App.tsx             # Routing and role-based route guards
 │   │   ├── index.css           # Color tokens, typography, and CSS variables
 │   │   └── main.tsx            # React 19 entry point
-│   ├── nginx.conf              # Reverse proxy config, SPA fallback, and security headers
+│   ├── nginx.conf              # TLS edge: HTTPS, security headers, rate limits, redacted logs
+│   ├── iv-proxy-headers.inc    # Shared proxy header set for API and WebSocket routes
 │   ├── Dockerfile              # Multi-stage Nginx build
 │   └── package.json            # React, TypeScript, and Vite dependencies
-├── docs/                       # Architecture, dataset, operations, and release gate documents
+├── scripts/backup.sh           # pg_dump backup and restore automation
+├── deploy/tls/                 # TLS certificates (server.crt / server.key, not committed)
+├── docs/                       # Architecture, dataset, operations, TLS, and release gate documents
 ├── docker-compose.yml          # Multi-container orchestration (PostgreSQL, Backend, Frontend)
 ├── .env.example                # Environment variable template
 └── README.md                   # Project technical documentation
@@ -326,7 +336,13 @@ All business endpoints require the `Authorization: Bearer <token_jwt>` header un
 
 #### `WS /ws/inspections/live` Message Format
 
-Authenticate via query token: `ws://host/ws/inspections/live?token=<jwt>`. Messages sent by the server:
+Authenticate with the `Sec-WebSocket-Protocol` header — the JWT never appears in the URL:
+
+```js
+const socket = new WebSocket('wss://host/ws/inspections/live', [`bearer.${accessToken}`])
+```
+
+Messages sent by the server:
 
 ```jsonc
 // When the connection is accepted
@@ -337,7 +353,18 @@ Authenticate via query token: `ws://host/ws/inspections/live?token=<jwt>`. Messa
 {"type": "heartbeat", "timestamp": 1769515215.1}
 ```
 
+A `?token=<jwt>` query parameter is still accepted for backwards compatibility, but it is discouraged because reverse-proxy and browser-history logs can capture URLs. Nginx in this project redacts the query string from access logs regardless.
+
 The web console subscribes to this feed through `LiveFeedProvider`: the Overview, History, and Stations pages update their data live without a reload, marked by the **LIVE** indicator.
+
+#### Session Lifecycle (`/auth/login`, `/auth/refresh`, `/auth/logout`)
+
+Access tokens are short-lived (15 minutes). A **refresh token** keeps operators signed in across a full shift (12 hours by default):
+
+- `POST /auth/login` returns both `token.access_token` and `refresh_token`.
+- `POST /auth/refresh` exchanges a refresh token for a new access token **and a new refresh token** (rotation). Reusing an already-rotated token is rejected.
+- `POST /auth/logout` revokes every active refresh token for that user.
+- The web client refreshes automatically on the first `401`; parallel requests wait for one refresh instead of triggering several. If the refresh fails, the user is returned to the login screen.
 
 ---
 
@@ -352,11 +379,15 @@ The web console subscribes to this feed through `LiveFeedProvider`: the Overview
 | `DATABASE_URL` | SQLAlchemy synchronous database URL. | `sqlite:///./industrialvision_ai.db` | Yes (must be PostgreSQL in production) |
 | `JWT_SECRET` | Secret key for JWT hashing (minimum 32 characters). | `dev-only-insecure-secret...` | Yes (must be random and unique) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT session lifetime in minutes. | `15` | Yes |
+| `REFRESH_TOKEN_EXPIRE_HOURS` | Shift-scoped refresh token lifetime; rotated on every use. | `12` | Yes |
+| `LOGIN_MAX_FAILURES` | Failed logins per account before temporary lockout. | `5` | Yes |
+| `LOGIN_LOCKOUT_MINUTES` | Lockout window for repeated login failures. | `15` | Yes |
+| `TRUST_PROXY_HEADERS` | Honour `X-Forwarded-For`/`-Proto` (set `true` behind the Nginx edge). | `false` | Yes (`true` in Docker) |
 | `CORS_ORIGINS` | Comma-separated list of allowed browser origins. | `http://localhost:5173,http://localhost:3000` | Yes (no wildcard `*`) |
 | `MAX_UPLOAD_BYTES` | Max allowed image file size in bytes. | `104857600` (100 MB) | Optional |
 | `EVIDENCE_ROOT` | Physical storage directory for visual evidence. | `data/evidence` | Optional |
 | `MODEL_ROOT` | Storage directory for model artefacts. | `models` | Optional |
-| `DEMO_LIVE_FEED` | Enables realtime simulated inspections for `simulated` stations (automatically disabled when `APP_ENV=test`). | `true` | Disable in production |
+| `DEMO_LIVE_FEED` | Enables realtime simulated inspections for `simulated` stations (automatically disabled when `APP_ENV=test`; **refused at startup when `APP_ENV=production`**). | `true` | Must be `false` |
 | `DEMO_FEED_INTERVAL_SECONDS` | Delay between inspections generated by the live feed. | `6` | Optional |
 
 Frontend variables (`frontend/.env` file):
@@ -373,7 +404,7 @@ Frontend variables (`frontend/.env` file):
 This project uses strict validation before code can be merged or released:
 
 ```bash
-# 1. Run the 223 backend unit and integration tests
+# 1. Run the 235 backend unit and integration tests
 cd backend
 python -m unittest discover -s tests -v
 
@@ -388,7 +419,7 @@ npm --prefix frontend run build
 ```
 
 Latest verification results:
-- **Backend:** 223 tests passing (0 failed, 0 errors).
+- **Backend:** 235 tests passing (0 failed, 0 errors).
 - **Frontend build:** Production bundle compiles cleanly without type errors.
 - **Accessibility:** 0 WCAG 2.1 AA violations across the main routes.
 - **Responsiveness:** 0 horizontal overflow on 390 px mobile viewport tests.
@@ -397,12 +428,13 @@ Latest verification results:
 
 ## Docker Compose Deployment
 
-To run an isolated production-ready environment with PostgreSQL 16, a standalone backend, and an unprivileged Nginx frontend:
+Runs an isolated production stack: PostgreSQL 18, a non-root backend, and an unprivileged Nginx edge that terminates TLS.
 
 ```bash
-# 1. Ensure JWT_SECRET and POSTGRES_PASSWORD are set in .env
+# 1. Provide secrets and TLS certificates
 export JWT_SECRET="production-secret-key-minimum-thirty-two-characters"
 export POSTGRES_PASSWORD="StrongPostgresPassword2026!"
+# Place server.crt and server.key in deploy/tls/ (see docs/deployment-tls.md)
 
 # 2. Build and run the full stack
 docker compose up -d --build
@@ -411,10 +443,36 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Services will be available at:
-- **Frontend Console:** [http://localhost:8080](http://localhost:8080)
-- **Backend Internal:** `http://backend:8000` (accessible internally via the frontend proxy)
-- **Database:** PostgreSQL is isolated in the internal Docker network and does not expose a public host port.
+Services are available at:
+- **Frontend Console (HTTPS):** `https://<host>:8443`
+- **HTTP:** port `8080` only redirects to HTTPS.
+- **Backend Internal:** `http://backend:8000` (reachable through the Nginx proxy only)
+- **Database:** PostgreSQL is isolated on the internal Docker network and publishes no host port.
+
+### Startup behaviour
+
+- `APP_ENV=production` is enforced; the container refuses to start if `JWT_SECRET` is weak,
+  `DEMO_LIVE_FEED` is enabled, `LOG_LEVEL=DEBUG`, or `DATABASE_URL` is not PostgreSQL.
+- The backend entrypoint runs `alembic upgrade head` before serving traffic and exits if
+  migrations fail, so the schema can never lag behind the code.
+- Override the public ports with `PUBLIC_HTTPS_PORT` / `PUBLIC_HTTP_PORT`, and the certificate
+  directory with `TLS_CERT_DIR`.
+
+### Backup & Restore
+
+`scripts/backup.sh` takes a consistent `pg_dump` (custom format, gzip) plus a JSON manifest:
+
+```bash
+# Back up (reads POSTGRES_* from the environment or repo .env)
+./scripts/backup.sh backup --output-dir /mnt/backup-nas
+
+# Restore into the configured database
+./scripts/restore.sh restore --backup-file /mnt/backup-nas/2026-10-27T04-21-13Z.dump.gz
+```
+
+Evidence images live in the `industrialvision_evidence_data` volume; back that up separately
+(e.g. `docker run --rm -v industrialvision_evidence_data:/data -v /mnt/backup:/backup alpine tar czf /backup/evidence.tgz -C /data .`).
+A restore is not complete until the database **and** the evidence volume are both restored.
 
 ---
 
@@ -442,10 +500,30 @@ SVG bounding boxes are calculated using the image's natural dimensions and then 
 
 ## Security & System Limitations
 
-- **Credential Sanitization:** RTSP camera URLs are automatically sanitized to remove username/password before storage or display in logs and APIs.
-- **Path Traversal Prevention:** Requests for model files and evidence files are strictly validated against their designated base directories (`MODEL_ROOT` and `EVIDENCE_ROOT`). The use of `..` or malicious path sequences is rejected.
-- **Live Stream Limitations:** Direct camera video streaming through the browser is not yet implemented as a complete end-to-end WebRTC/RTSP decode pipeline; validated production workflows rely on image upload and other supported inspection patterns.
-- **Model Warning:** Activating a model in the interface only indicates that the artefact is available for inference; it does not guarantee the model has been fully validated for production defect detection accuracy.
+### Implemented controls
+
+- **Transport security:** TLS 1.2/1.3 terminated at the Nginx edge, HSTS enabled, HTTP redirected to HTTPS. The backend port binds to `127.0.0.1` only.
+- **Credential transport:** REST uses `Authorization: Bearer`; WebSockets use the `Sec-WebSocket-Protocol: bearer.<jwt>` header so tokens never appear in URLs. Nginx access logs omit the query string.
+- **Browser hardening:** `Content-Security-Policy` restricted to same-origin resources (fonts are bundled; no inline scripts), plus `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
+- **Authentication:** per-account lockout after repeated failures, per-IP `limit_req` on `/api/v1/auth/login`, and an `AuditLog` entry for every login success, login failure, and logout.
+- **Session management:** 15-minute access tokens with rotating 12-hour refresh tokens stored as SHA-256 hashes; logout revokes all of a user's refresh tokens.
+- **Demo-data protection:** `python -m app.seed` refuses to run under `APP_ENV=production`; `--reset` additionally requires `--confirm-reset WIPE-ALL-DATA`; the fabricated live feed is refused at startup in production.
+- **Credential sanitization:** RTSP camera URLs are sanitized to remove username/password before storage or display.
+- **Path traversal prevention:** model and evidence paths are validated against `MODEL_ROOT` / `EVIDENCE_ROOT`; `..` and absolute paths are rejected.
+- **Least privilege:** containers run as non-root users, drop all Linux capabilities, and use `no-new-privileges`; nginx runtime paths are mounted as tmpfs.
+
+### Verified by test
+
+235 backend tests and the frontend typecheck/build run in CI, including a PostgreSQL 18 job that applies every migration and runs the suite against a real database.
+
+### Known limitations
+
+- **Model validation:** activating a model only marks the artefact as available for inference; it does not certify defect-detection accuracy. Threshold calibration against your own defect set is still required.
+- **Direct video streaming:** live WebRTC/RTSP decode into the browser is not implemented end-to-end; validated workflows use image upload and the event feed.
+- **Single-process event bus:** the live feed/WebSocket fan-out is in-process. Do not run multiple backend replicas without replacing `event_bus` with a shared broker (for example Redis pub/sub), otherwise each replica only sees its own events and the demo feed would run more than once.
+- **Token storage in the browser:** access and refresh tokens are kept in `sessionStorage`, or in `localStorage` when "remember me" is checked. The strict same-origin CSP (no inline or third-party scripts) mitigates the usual XSS vector, but httpOnly cookies would be stronger. Treat this as a hardening item if your threat model includes hostile extensions on operator workstations.
+- **Evidence backup is manual:** `scripts/backup.sh` covers the database only; the evidence volume must be archived separately.
+- **Docker images are not built in this environment:** the compose stack was reviewed and its config validated, but a full `docker compose up` has not been executed on this machine.
 
 ---
 

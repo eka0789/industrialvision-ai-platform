@@ -44,6 +44,7 @@ from app.db.models import (
     SystemEvent,
     User,
 )
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.decision import DecisionRules, decide_inspection
 from app.services.evidence import EvidenceStorage
@@ -66,6 +67,9 @@ ERROR_PROFILES = (
 )
 
 PRODUCT_CODES = ("BRK-2041-A", "BRK-2041-B", "CVR-1180-C", "HSG-0904-A", "SFT-3310-D")
+
+# Typed acknowledgement required by --reset, so a stray flag cannot wipe user accounts.
+RESET_CONFIRMATION = "WIPE-ALL-DATA"
 
 
 def _later(current: datetime | None, candidate: datetime) -> datetime:
@@ -569,12 +573,24 @@ def reset_database(db: Session, storage: EvidenceStorage | None = None) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="industrialvision-seed", description="Seed demo data")
     parser.add_argument("--reset", action="store_true", help="Wipe all data before seeding")
+    parser.add_argument(
+        "--confirm-reset", default="", metavar="TOKEN",
+        help=f"Required with --reset; must equal {RESET_CONFIRMATION}",
+    )
     parser.add_argument("--append", action="store_true", help="Add inspections even if data exists")
     parser.add_argument("--inspections", type=int, default=240, help="Number of inspection records")
     parser.add_argument("--hours", type=float, default=72.0, help="Spread inspections over the last N hours")
     parser.add_argument("--no-evidence", action="store_true", help="Skip generating evidence images")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible data")
     args = parser.parse_args()
+
+    if settings.APP_ENV.casefold() == "production":
+        parser.error("app.seed is disabled when APP_ENV=production; it writes fabricated demo data.")
+    if args.reset and args.confirm_reset != RESET_CONFIRMATION:
+        parser.error(
+            "--reset deletes every table including user accounts. "
+            f"Re-run with --confirm-reset {RESET_CONFIRMATION}"
+        )
 
     rng = random.Random(args.seed)
     db = SessionLocal()

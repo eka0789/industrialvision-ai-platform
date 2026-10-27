@@ -53,6 +53,12 @@ class User(Base):
 
     role: Mapped["Role"] = relationship(back_populates="users")
     audits: Mapped[list["AuditLog"]] = relationship(back_populates="user", cascade="save-update")
+    login_attempts: Mapped[list["LoginAttempt"]] = relationship(
+        back_populates="user", cascade="save-update"
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user", cascade="save-update"
+    )
 
     def set_password(self, password: str) -> None:
         from app.core.security import hash_password
@@ -270,6 +276,41 @@ class SystemEvent(Base):
 
     def __repr__(self) -> str:
         return f"<SystemEvent(id={self.id}, type={self.event_type}, level={self.level})>"
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    username: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+
+    user: Mapped["User | None"] = relationship(back_populates="login_attempts")
+
+    def __repr__(self) -> str:
+        return f"<LoginAttempt(id={self.id}, username={self.username}, success={self.success})>"
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="refresh_tokens")
+
+    def __repr__(self) -> str:
+        return f"<RefreshToken(id={self.id}, user_id={self.user_id}, revoked={self.revoked})>"
 
 
 class AuditLog(Base):

@@ -17,6 +17,7 @@ export interface LoginResponse {
     user_id: number
   }
   user: User
+  refresh_token: string
 }
 
 export interface Health {

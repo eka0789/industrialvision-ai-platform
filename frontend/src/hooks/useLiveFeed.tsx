@@ -22,13 +22,18 @@ interface InspectionCreatedMessage {
 }
 
 function resolveSocketUrl(): string | null {
-  const token = getAccessToken()
-  if (!token) return null
   const override = import.meta.env.VITE_WS_URL as string | undefined
   const base = override
     ? override.replace(/\/+$/, '')
     : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
-  return `${base}/ws/inspections/live?token=${encodeURIComponent(token)}`
+  return `${base}/ws/inspections/live`
+}
+
+// The JWT travels in the Sec-WebSocket-Protocol header rather than the URL, so
+// reverse-proxy and browser-history logs never contain a bearer credential.
+function socketProtocols(): string[] | null {
+  const token = getAccessToken()
+  return token ? [`bearer.${token}`] : null
 }
 
 export function LiveFeedProvider({ children }: { children: ReactNode }) {
@@ -59,14 +64,15 @@ export function LiveFeedProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       if (disposed) return
       const url = resolveSocketUrl()
-      if (!url) {
+      const protocols = socketProtocols()
+      if (!url || !protocols) {
         setStatus('idle')
         return
       }
       setStatus('connecting')
       let socket: WebSocket
       try {
-        socket = new WebSocket(url)
+        socket = new WebSocket(url, protocols)
       } catch {
         setStatus('offline')
         scheduleReconnect(connect)

@@ -88,6 +88,31 @@ class WebSocketAuthTests(unittest.TestCase):
             ):
                 pass
 
+    def test_ws_inspections_live_accepts_bearer_subprotocol(self):
+        """Token in Sec-WebSocket-Protocol authenticates and is echoed back."""
+        with self.client.websocket_connect(
+            "/ws/inspections/live",
+            subprotocols=[f"bearer.{self.token}"],
+        ) as ws:
+            self.assertEqual(ws.accepted_subprotocol, f"bearer.{self.token}")
+            self.assertEqual(ws.receive_json()["type"], "connected")
+
+    def test_ws_inspections_live_rejects_token_in_query_when_bearer_missing(self):
+        """Query token still works for old clients, but no subprotocol is echoed."""
+        with self.client.websocket_connect(
+            f"/ws/inspections/live?token={self.token}"
+        ) as ws:
+            self.assertIsNone(ws.accepted_subprotocol)
+            self.assertEqual(ws.receive_json()["type"], "connected")
+
+    def test_ws_inspections_live_rejects_invalid_bearer_subprotocol(self):
+        with self.assertRaises(WebSocketDisconnect):
+            with self.client.websocket_connect(
+                "/ws/inspections/live",
+                subprotocols=["bearer.not-a-valid-jwt"],
+            ):
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()
