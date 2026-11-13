@@ -120,3 +120,35 @@ README-level review only; the reference source code and dependency lockfiles hav
 - No industrial model, dataset, physical camera, or GPU has been validated in this workspace. No public dataset has been downloaded here; `docs/DATASETS.md` documents sources and licenses only.
 - Ultralytics/Torch/Anomalib compatibility with Python 3.12 is unknown; the training entry point treats Ultralytics as optional and its missing-runtime path is tested (failed run, no metrics). Keep optional dependencies isolated until verified.
 - Model configuration must include a task-appropriate rejection policy before a successful detection can produce PASS. No anomaly score is derived from object-detection confidence.
+
+---
+
+# Unified Industrial AI Platform — Master Plan (Phases A–H)
+
+**Started:** 2026-11-14. Baseline: 239 tests (2 env-dependent WS failures repaired first — see below).
+Non-negotiable principles from the master prompt apply: verified-done only, no fabricated numbers,
+fail-safe always, security bar never drops, tenant isolation sacred, small verified steps.
+
+## Phase A — Scaling & infrastructure foundation
+
+- [x] **A1 — Redis event bus with explicit in-memory fallback.** `app/services/event_bus.py`
+  now ships two interchangeable implementations behind one interface: `EventBus` (in-process,
+  unchanged) and `RedisEventBus` (Redis pub/sub; sync publish, one background pump task feeding
+  the same bounded per-subscriber queues, automatic reconnect with resubscribe and backoff).
+  While Redis is unreachable publishes degrade to local-only delivery and `connected` is False —
+  payloads are never silently dropped and the outage is observable. `REDIS_URL` setting added
+  (empty = memory mode); production config validator now refuses to start without
+  `redis://`/`rediss://` (cross-process fan-out is required, not optional). `/health` reports
+  `event_bus: {mode, connected, configured}` and marks overall status degraded when a configured
+  bus is disconnected. Compose: hardened `redis:7-alpine` service (no public port, no-new-privileges,
+  cap_drop ALL, tmpfs data, noeviction) wired into backend env + health-gated depends_on.
+  First repair of this phase: the two positive-path `/ws/inspections/live` tests failed in a fresh
+  workspace because the WS endpoints used the module-global `SessionLocal` (empty file DB) instead
+  of the `get_db` dependency the tests override — endpoints now inject `get_db` (FastAPI supports
+  DI on WebSocket routes), production behavior unchanged.
+  Verified: `python -m unittest tests.test_event_bus tests.test_event_bus_redis tests.test_health
+  tests.test_config tests.test_live_feed tests.test_websockets tests.test_seed_demo` → 48 tests OK
+  (fake-transport tests: fan-out across two bus instances = two simulated processes, exactly-once
+  local delivery, degraded local delivery on outage, ImportError fallback, pump reconnect after
+  transport failure, failed ping reporting; 3 consecutive green runs). `redis` 6.4.0 installed and
+  pinned `redis>=6.0,<7` in requirements-core.txt; `.env.example` documents REDIS_URL.

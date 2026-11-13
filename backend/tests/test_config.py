@@ -58,6 +58,7 @@ class SettingsTests(unittest.TestCase):
             DEMO_LIVE_FEED=False,
             JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
             DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+            REDIS_URL="redis://redis:6379/0",
             CORS_ORIGINS="https://inspection.example",
         )
         self.assertEqual(config.APP_ENV, "production")
@@ -71,6 +72,7 @@ class SettingsTests(unittest.TestCase):
                 DEMO_LIVE_FEED=True,
                 JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+            REDIS_URL="redis://redis:6379/0",
                 CORS_ORIGINS="https://inspection.example",
             )
 
@@ -83,6 +85,7 @@ class SettingsTests(unittest.TestCase):
                 LOG_LEVEL="debug",
                 JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+            REDIS_URL="redis://redis:6379/0",
                 CORS_ORIGINS="https://inspection.example",
             )
 
@@ -93,6 +96,7 @@ class SettingsTests(unittest.TestCase):
                 DEBUG=False,
                 JWT_SECRET="replace-with-a-unique-random-secret-of-at-least-32-characters",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+            REDIS_URL="redis://redis:6379/0",
                 CORS_ORIGINS="https://inspection.example",
             )
 
@@ -103,7 +107,32 @@ class SettingsTests(unittest.TestCase):
                 DEBUG=False,
                 JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+            REDIS_URL="redis://redis:6379/0",
                 CORS_ORIGINS="*",
+            )
+
+    def test_production_requires_redis_url(self):
+        with self.assertRaises(ValidationError):
+            self.make_settings(
+                APP_ENV="production",
+                DEBUG=False,
+                DEMO_LIVE_FEED=False,
+                JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
+                DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+                REDIS_URL="",
+                CORS_ORIGINS="https://inspection.example",
+            )
+
+    def test_production_rejects_non_redis_scheme(self):
+        with self.assertRaises(ValidationError):
+            self.make_settings(
+                APP_ENV="production",
+                DEBUG=False,
+                DEMO_LIVE_FEED=False,
+                JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
+                DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
+                REDIS_URL="memcached://cache:11211",
+                CORS_ORIGINS="https://inspection.example",
             )
 
     def test_threshold_and_port_ranges_are_validated(self):

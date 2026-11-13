@@ -21,6 +21,30 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  redis:
+    image: redis:7-alpine
+    container_name: industrialvision-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory-policy", "noeviction"]
+    # Event bus fan-out + worker queue only; no persistence by design (events
+    # are transient) and no public port. No secrets stored.
+    networks:
+      - internal-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    # redis runs as its own unprivileged user in the official image; drop
+    # capabilities it does not need.
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /data
+
   backend:
     build:
       context: ./backend
@@ -30,6 +54,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       APP_ENV: production
       DEBUG: "false"
@@ -37,6 +63,7 @@ services:
       PORT: 8000
       JWT_SECRET: "${JWT_SECRET:?Error: JWT_SECRET environment variable must be set (minimum 32 characters)}"
       DATABASE_URL: postgresql://${POSTGRES_USER:-iv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-industrialvision}
+      REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost:8443}
       EVIDENCE_ROOT: /app/data/evidence
       MODEL_ROOT: /app/models

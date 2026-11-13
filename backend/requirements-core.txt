@@ -10,3 +10,4 @@ websockets
 pyjwt
 python-multipart
 python-dotenv
+redis>=6.0,<7

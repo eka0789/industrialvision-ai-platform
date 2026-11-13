@@ -16,17 +16,20 @@ from app.api.v1.routers.inspections.inspection import router as inspections_rout
 from app.api.v1.routers.models import router as models_router
 from app.api.v1.routers.websockets import router as websockets_router
 from app.core.config import settings
+from app.services.event_bus import event_bus
 from app.services.live_feed import live_feed
 
 
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI):
+    await event_bus.startup()
     if settings.DEMO_LIVE_FEED and settings.APP_ENV.casefold() != "test":
         live_feed.start()
     try:
         yield
     finally:
         await live_feed.stop()
+        await event_bus.shutdown()
 
 
 def create_app() -> FastAPI:

@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./industrialvision_ai.db"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
+    # Redis event bus / worker queue. Empty string = in-process bus (single-process
+    # dev only; /health reports the active bus mode explicitly). Production must
+    # configure redis:// or rediss:// so fan-out works across processes.
+    REDIS_URL: str = ""
+
     MAX_UPLOAD_BYTES: int = Field(default=100 * 1024 * 1024, gt=0)
     MAX_UPLOAD_VIDEO_BYTES: int = Field(default=5 * 1024 * 1024 * 1024, gt=0)
     MAX_IMAGE_PIXELS: int = Field(default=40_000_000, gt=0)
@@ -96,6 +101,10 @@ class Settings(BaseSettings):
                 raise ValueError("DEMO_LIVE_FEED must be false in production")
             if self.LOG_LEVEL.upper() == "DEBUG":
                 raise ValueError("LOG_LEVEL=DEBUG is not allowed in production (may log sensitive data)")
+            if not self.REDIS_URL.strip():
+                raise ValueError("Production requires REDIS_URL (redis:// or rediss://) for cross-process fan-out and the worker queue")
+            if not self.REDIS_URL.strip().startswith(("redis://", "rediss://")):
+                raise ValueError("REDIS_URL must start with redis:// or rediss://")
 
         return self
 
