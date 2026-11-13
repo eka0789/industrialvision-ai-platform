@@ -7,11 +7,11 @@ import json
 import time
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.jwt import decode_token
-from app.db.session import SessionLocal
+from app.db.session import get_db
 from app.db.models import Camera, User
 from app.services.camera import CameraStreamer
 from app.services.event_bus import event_bus
@@ -60,6 +60,7 @@ async def camera_stream(
     camera_id: int,
     token: Optional[str] = Query(None),
     inference: bool = Query(True),
+    db: Session = Depends(get_db),
 ):
     """Real-time camera stream with optional inference.
 
@@ -67,44 +68,40 @@ async def camera_stream(
     Sends JSON messages: {camera_id, session_id, frame_id, timestamp, detections?, status}
     """
     jwt_token, subprotocol = extract_ws_token(websocket, token)
-    db = SessionLocal()
+    user = await authenticate_ws(jwt_token, db)
+    if not user:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+        return
+
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Camera not found")
+        return
+
+    if not camera.is_active:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Camera not active")
+        return
+
+    streamer = CameraStreamer(camera, db)
+
     try:
-        user = await authenticate_ws(jwt_token, db)
-        if not user:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
-            return
-
-        camera = db.query(Camera).filter(Camera.id == camera_id).first()
-        if not camera:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Camera not found")
-            return
-
-        if not camera.is_active:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Camera not active")
-            return
-
-        streamer = CameraStreamer(camera, db)
-
+        await streamer.stream_frames(websocket, inference=inference, session_id=None, subprotocol=subprotocol)
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
         try:
-            await streamer.stream_frames(websocket, inference=inference, session_id=None, subprotocol=subprotocol)
-        except WebSocketDisconnect:
+            await websocket.send_json({"error": str(e)})
+        except Exception:
             pass
-        except Exception as e:
-            try:
-                await websocket.send_json({"error": str(e)})
-            except Exception:
-                pass
-        finally:
-            streamer.close()
-
     finally:
-        db.close()
+        streamer.close()
 
 
 @router.websocket("/inspections/live")
 async def inspection_events(
     websocket: WebSocket,
     token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
 ):
     """Subscribe to inspection result events across all cameras.
 
@@ -113,30 +110,25 @@ async def inspection_events(
     plus periodic {"type": "heartbeat", timestamp}.
     """
     jwt_token, subprotocol = extract_ws_token(websocket, token)
-    db = SessionLocal()
+    user = await authenticate_ws(jwt_token, db)
+    if not user:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+        return
+
+    await websocket.accept(subprotocol=subprotocol)
+    await websocket.send_json({"type": "connected", "timestamp": time.time()})
+    queue = event_bus.subscribe(TOPIC_INSPECTIONS)
+
     try:
-        user = await authenticate_ws(jwt_token, db)
-        if not user:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
-            return
-
-        await websocket.accept(subprotocol=subprotocol)
-        await websocket.send_json({"type": "connected", "timestamp": time.time()})
-        queue = event_bus.subscribe(TOPIC_INSPECTIONS)
-
-        try:
-            while True:
-                try:
-                    payload = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    await websocket.send_json(payload)
-                except asyncio.TimeoutError:
-                    await websocket.send_json({"type": "heartbeat", "timestamp": time.time()})
-        except WebSocketDisconnect:
-            pass
-        except Exception:
-            pass
-        finally:
-            event_bus.unsubscribe(TOPIC_INSPECTIONS, queue)
-
+        while True:
+            try:
+                payload = await asyncio.wait_for(queue.get(), timeout=15.0)
+                await websocket.send_json(payload)
+            except asyncio.TimeoutError:
+                await websocket.send_json({"type": "heartbeat", "timestamp": time.time()})
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
     finally:
-        db.close()
+        event_bus.unsubscribe(TOPIC_INSPECTIONS, queue)
