@@ -152,3 +152,19 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   local delivery, degraded local delivery on outage, ImportError fallback, pump reconnect after
   transport failure, failed ping reporting; 3 consecutive green runs). `redis` 6.4.0 installed and
   pinned `redis>=6.0,<7` in requirements-core.txt; `.env.example` documents REDIS_URL.
+
+- [x] **A2 — Worker layer (RQ + in-process).** `app/services/task_queue.py`: one registry of
+  named task functions (`app/services/tasks.py` — first task: `video_inspection`, same function
+  the synchronous API uses), two transports: `InProcessTaskQueue` (bounded thread pool, linear-
+  backoff retries, bounded dead-letter record after final failure, graceful shutdown) and
+  `RQTaskQueue` (RQ over Redis, `Retry(max=3)`, failed-job registry as the dead-letter store).
+  `TaskQueueFacade` degrades visibly to in-process execution when an RQ enqueue fails (health
+  shows `worker.degraded`) — work is delayed, never dropped. `python -m app.worker` is the
+  standalone RQ worker (SIGTERM-safe). `TASK_QUEUE_MODE=in-process|rq|auto` added (production
+  validator requires `rq`); `/health` reports `worker: {mode, degraded, dead_letter_count}`.
+  Compose gains a hardened `worker` service (same image, shared evidence/model volumes, internal
+  network only). Verified: `python -m unittest tests.test_task_queue` → 12 tests OK (in-process
+  execute/retry/recover/dead-letter/shutdown-drain; RQ via fakeredis: execute, retry→dead registry,
+  unknown-task rejection; facade degrade+recover). Full suite: `python -m unittest discover -s tests`
+  → **262 tests OK** (4 pre-existing skips). `rq` 2.12.0 pinned `rq>=2.0,<3` in requirements-core;
+  `requirements-dev.txt` adds fakeredis (test-only).

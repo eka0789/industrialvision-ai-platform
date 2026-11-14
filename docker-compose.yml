@@ -64,6 +64,7 @@ services:
       JWT_SECRET: "${JWT_SECRET:?Error: JWT_SECRET environment variable must be set (minimum 32 characters)}"
       DATABASE_URL: postgresql://${POSTGRES_USER:-iv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-industrialvision}
       REDIS_URL: redis://redis:6379/0
+      TASK_QUEUE_MODE: rq
       CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost:8443}
       EVIDENCE_ROOT: /app/data/evidence
       MODEL_ROOT: /app/models
@@ -86,6 +87,39 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: industrialvision-worker
+    restart: unless-stopped
+    # Same image as the backend; consumes the RQ queue with the same task
+    # functions (video inspection today, RAG ingestion as modules land).
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      JWT_SECRET: "${JWT_SECRET:?Error: JWT_SECRET environment variable must be set (minimum 32 characters)}"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-industrialvision}
+      REDIS_URL: redis://redis:6379/0
+      TASK_QUEUE_MODE: rq
+      EVIDENCE_ROOT: /app/data/evidence
+      MODEL_ROOT: /app/models
+      DEMO_LIVE_FEED: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - evidence_data:/app/data/evidence
+      - model_data:/app/models
+    networks:
+      - internal-net
     security_opt:
       - no-new-privileges:true
 

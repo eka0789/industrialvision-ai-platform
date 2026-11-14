@@ -11,3 +11,4 @@ pyjwt
 python-multipart
 python-dotenv
 redis>=6.0,<7
+rq>=2.0,<3

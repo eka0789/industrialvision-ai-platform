@@ -59,6 +59,7 @@ class SettingsTests(unittest.TestCase):
             JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
             DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
             REDIS_URL="redis://redis:6379/0",
+            TASK_QUEUE_MODE="rq",
             CORS_ORIGINS="https://inspection.example",
         )
         self.assertEqual(config.APP_ENV, "production")
@@ -73,6 +74,7 @@ class SettingsTests(unittest.TestCase):
                 JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
             REDIS_URL="redis://redis:6379/0",
+            TASK_QUEUE_MODE="rq",
                 CORS_ORIGINS="https://inspection.example",
             )
 
@@ -86,6 +88,7 @@ class SettingsTests(unittest.TestCase):
                 JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
             REDIS_URL="redis://redis:6379/0",
+            TASK_QUEUE_MODE="rq",
                 CORS_ORIGINS="https://inspection.example",
             )
 
@@ -97,6 +100,7 @@ class SettingsTests(unittest.TestCase):
                 JWT_SECRET="replace-with-a-unique-random-secret-of-at-least-32-characters",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
             REDIS_URL="redis://redis:6379/0",
+            TASK_QUEUE_MODE="rq",
                 CORS_ORIGINS="https://inspection.example",
             )
 
@@ -108,6 +112,7 @@ class SettingsTests(unittest.TestCase):
                 JWT_SECRET="production-secret-value-that-is-at-least-32-chars",
                 DATABASE_URL="postgresql+psycopg://user:pass@db:5432/industrialvision",
             REDIS_URL="redis://redis:6379/0",
+            TASK_QUEUE_MODE="rq",
                 CORS_ORIGINS="*",
             )
 

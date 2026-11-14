@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     # configure redis:// or rediss:// so fan-out works across processes.
     REDIS_URL: str = ""
 
+    # Background task transport: "in-process" (thread pool, dev default), "rq"
+    # (Redis queue consumed by `python -m app.worker`), or "auto" (rq when
+    # REDIS_URL is set). Production must use "rq" so the worker service exists.
+    TASK_QUEUE_MODE: Literal["in-process", "rq", "auto"] = "in-process"
+    TASK_MAX_RETRIES: int = Field(default=3, ge=0, le=10)
+    TASK_RETRY_DELAY_SECONDS: float = Field(default=1.0, gt=0.0, le=60.0)
+
     MAX_UPLOAD_BYTES: int = Field(default=100 * 1024 * 1024, gt=0)
     MAX_UPLOAD_VIDEO_BYTES: int = Field(default=5 * 1024 * 1024 * 1024, gt=0)
     MAX_IMAGE_PIXELS: int = Field(default=40_000_000, gt=0)
@@ -105,6 +112,8 @@ class Settings(BaseSettings):
                 raise ValueError("Production requires REDIS_URL (redis:// or rediss://) for cross-process fan-out and the worker queue")
             if not self.REDIS_URL.strip().startswith(("redis://", "rediss://")):
                 raise ValueError("REDIS_URL must start with redis:// or rediss://")
+            if self.TASK_QUEUE_MODE != "rq":
+                raise ValueError("TASK_QUEUE_MODE must be 'rq' in production (standalone worker service)")
 
         return self
 
