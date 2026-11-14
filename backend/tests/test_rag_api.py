@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import time
 import unittest
 import unittest.mock
@@ -23,14 +25,13 @@ from app.services.task_queue import task_queue
 
 class RagApiTests(unittest.TestCase):
     def setUp(self):
-        import tempfile
-
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        for attr, value in (("EVIDENCE_ROOT", self._tmp.name), ("RAG_LLM_PROVIDER", "mock-demo")):
-            patcher = unittest.mock.patch.object(app_settings, attr, value)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        
+        # NOTE: EVIDENCE_ROOT is deliberately NOT patched: under
+        # TASK_QUEUE_MODE=rq the RQ worker is a separate process with its own
+        # settings — tests and worker must share the default relative root.
+        patcher = unittest.mock.patch.object(app_settings, "RAG_LLM_PROVIDER", "mock-demo")
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
@@ -79,6 +80,12 @@ class RagApiTests(unittest.TestCase):
         self.app.dependency_overrides.clear()
         Base.metadata.drop_all(self.engine)
         self.engine.dispose()
+        # Shared-root artifacts created by this test class (worker + API both
+        # use the default relative EVIDENCE_ROOT).
+        import shutil
+
+        for relative in ("rag", "reports"):
+            shutil.rmtree(Path(app_settings.EVIDENCE_ROOT) / relative, ignore_errors=True)
 
     def override_db(self):
         db = self.session_factory()

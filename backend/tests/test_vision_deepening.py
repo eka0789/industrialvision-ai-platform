@@ -183,12 +183,7 @@ class ReportsTests(unittest.TestCase):
         from app.db.base import Base
         from app.db.models import Organization, Role, User
 
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        patcher = unittest.mock.patch.object(app_settings, "EVIDENCE_ROOT", self._tmp.name)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
+        # Shared EVIDENCE_ROOT with the RQ worker (see test_rag_api note).
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.factory = sessionmaker(bind=self.engine, expire_on_commit=False)
@@ -218,6 +213,9 @@ class ReportsTests(unittest.TestCase):
         self.app.dependency_overrides.clear()
         Base.metadata.drop_all(self.engine)
         self.engine.dispose()
+        import shutil
+
+        shutil.rmtree(Path(app_settings.EVIDENCE_ROOT) / "reports", ignore_errors=True)
 
     def override_db(self):
         db = self.factory()

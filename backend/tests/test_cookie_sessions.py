@@ -47,6 +47,12 @@ class CookieSessionTestBase(unittest.TestCase):
         patcher = patch("app.core.config.settings.AUTH_TOKEN_STORAGE", self.storage_mode)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # The CI integration job runs with APP_ENV=production, which would set
+        # Secure cookies that the http://testclient never echoes back. These
+        # tests exercise the cookie MECHANICS, not the Secure flag.
+        patcher = patch("app.core.config.settings.AUTH_COOKIE_SECURE", False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
         self.app = create_app()
         self.app.dependency_overrides[get_db] = self.override_db
