@@ -369,3 +369,30 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   Verified: `python -m unittest tests.test_mlops` → 14 tests OK (PSI math on known fixtures,
   missing-reference error, stable-vs-drifted comparison, promotion gate, one-production rule,
   rollback, MLflow disable/failure paths). Full suite **363 tests OK**. Frontend build + lint clean.
+
+## Phase F — Vision deepening (close ForgeSight gaps in OUR domain)
+
+- [x] **F1 — Browser video streaming.** `GET /ws/cameras/{id}/mjpeg`: MJPEG multipart stream fed
+  by the existing bounded capture worker (`CameraStreamer.latest_jpeg`, lazy open, JPEG q80);
+  auth via the Authorization header (fetch-based player — **no tokens in URLs**, consistent with
+  WS auth); org-scoped 404 for foreign cameras, 409 for inactive. Honest docs: this is MJPEG,
+  NOT WebRTC (LAN latency budget ~0.5–2 s, capture-interval bound); detection overlays compose
+  client-side from the existing WS events. Tests: auth denial, 404/409 lifecycle, multipart
+  boundary framing.
+- [x] **F2 — OCR service.** `app/vision/ocr.py` behind the optional tesseract extra: guarded
+  engine detection (package + binary); missing → `status: "unavailable"`, mode
+  `unavailable-missing-tesseract` (labeled, never an empty-but-OK result); engine crash →
+  structured error; confidence is best-effort from `image_to_data`. Stub-engine contract tests.
+- [x] **F3 — Anomaly training integration.** `python -m app.training.train_anomaly` trains
+  PatchCore/PaDiM memory banks through the existing training-run lifecycle: compatibility gate
+  refusal (missing torch/feature deps) or unreadable samples → run `failed` with reason and NO
+  metrics (existing rule); success saves the memory bank as an in-run checkpoint
+  (`models/memory_bank.npz`) with sample counts only — quality metrics remain the separate
+  evaluation run's job. Subprocess test asserts the completed/failed contract either way.
+- [x] **F4 — Reports module.** `/reports`: `POST /generate` (operator+, org-scoped, audit-logged)
+  aggregates the period synchronously (bounded) and renders JSON/CSV on the worker queue into
+  `EVIDENCE_ROOT/reports` with org-prefixed filenames; `GET /reports` (prefix-scoped listing),
+  `GET /reports/download/{filename}` (regex + org-prefix validation — path traversal and
+  cross-tenant denied), `DELETE /{filename}` (admin, audited). Honesty rule: windows with <30
+  inspections are flagged `below_minimum` with an explanatory note instead of quality statistics.
+  Verified: `python -m unittest tests.test_vision_deepening` → 10 tests OK. Full suite 373 OK.

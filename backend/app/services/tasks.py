@@ -108,3 +108,12 @@ def run_drift_check(org_id: int = 1, model_id: int | None = None) -> dict:
         return {"org_id": org_id, "models": results}
     finally:
         db.close()
+
+
+@register_task("generate_report_file")
+def run_generate_report(org_id: int, period: str, fmt: str, payload: dict) -> dict:
+    """Render a report payload to JSON/CSV on the worker (F4)."""
+    from app.api.v1.routers.reports import write_report_file
+
+    name = write_report_file(org_id, period, fmt, payload)
+    return {"filename": name, "period": period, "format": fmt}

@@ -144,6 +144,23 @@ class CameraStreamer:
             self.db.commit()
             raise CameraStreamError(f"Failed to open camera: {safe_error}")
 
+    def latest_jpeg(self, quality: int = 80) -> bytes | None:
+        """Latest captured frame as JPEG (MJPEG streaming path, F1).
+
+        Opens the source lazily and reuses the bounded capture worker; returns
+        None when no frame is available yet (the stream just idles).
+        """
+        if self.worker is None or self.worker._stop.is_set():
+            if not self.running and not self.open():
+                return None
+            self._start_capture_worker()
+        latest = self.worker.get_latest() if self.worker else None
+        if latest is None:
+            return None
+        _ts, frame = latest
+        ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        return bytes(buffer) if ok else None
+
     def _start_capture_worker(self) -> CaptureWorker:
         """Start bounded capture worker."""
         self.worker = CaptureWorker(
