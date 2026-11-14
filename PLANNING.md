@@ -396,3 +396,18 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   cross-tenant denied), `DELETE /{filename}` (admin, audited). Honesty rule: windows with <30
   inspections are flagged `below_minimum` with an explanatory note instead of quality statistics.
   Verified: `python -m unittest tests.test_vision_deepening` → 10 tests OK. Full suite 373 OK.
+
+## Phase G — ML Laboratory (port ForgeSight G, isolated)
+
+- [x] **G1 — Browser-only RL simulator.** `LabPage` "Simulasi penjadwalan perawatan": client-side
+  tabular Q-learning (deterministic mulberry32 PRNG — same seed reproduces exactly; tunable α/ε),
+  degrading-machine environment with wait/inspect/overhaul actions and breakdown penalties.
+  Explicit "Simulasi edukasi — TIDAK terhubung ke keputusan produksi" note in the UI (and this
+  doc); zero backend state, zero API calls. Reward chart + learned policy chips + breakdown count.
+- [x] **G2 — Experiment browser.** `GET /training/runs[/{run_id}]`: read-only scan of
+  `TRAINING_RUNS_DIRS` manifests (no mutation, no artifact bytes), status/seed/dataset fingerprint/
+  metrics/reason displayed; checkpoint entries show existence + server-computed SHA-256 + size;
+  failed runs show their reason honestly. Path-safe lookup (path separators rejected at handler;
+  routing denies traversal); auth required; e2e sweep includes `/lab`.
+  Verified: `python -m unittest tests.test_lab` → 3 tests OK. Full suite **376 tests OK** twice
+  consecutively (4 pre-existing skips). Frontend build + oxlint clean.

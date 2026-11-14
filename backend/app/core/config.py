@@ -97,6 +97,9 @@ class Settings(BaseSettings):
     # Optional MLflow experiment tracking mirror (E3); local run dir stays the
     # source of truth. Empty = disabled.
     MLFLOW_TRACKING_URI: str = ""
+    # Comma-separated run directories scanned read-only by the experiment
+    # browser (G2). Only manifests are read — artifacts stay on disk.
+    TRAINING_RUNS_DIRS: str = "training_runs,data/pdm/training_runs,data/anomaly_runs"
     DEFAULT_ONNX_MODEL: str = "model.onnx"
     ONNX_DEVICE: Literal["cpu", "cuda"] = "cpu"
     CONF_THRESHOLD: float = Field(default=0.25, ge=0.0, le=1.0)

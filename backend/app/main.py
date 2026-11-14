@@ -23,6 +23,7 @@ from app.api.v1.routers.agent import router as agent_router
 from app.api.v1.routers.websockets import router as websockets_router
 from app.api.v1.routers.streaming import router as streaming_router
 from app.api.v1.routers.reports import router as reports_router
+from app.api.v1.routers.training import router as training_router
 from app.core.config import settings
 from app.services.event_bus import event_bus
 from app.services.live_feed import live_feed
@@ -134,6 +135,7 @@ def create_app() -> FastAPI:
     _app.include_router(websockets_router)
     _app.include_router(streaming_router)
     _app.include_router(reports_router)
+    _app.include_router(training_router)
 
     @_app.get("/", tags=["root"])
     def root():

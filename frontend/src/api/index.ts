@@ -3,6 +3,7 @@ import type {
   Camera,
   Machine,
   AgentApproval,
+  TrainingRunInfo,
   AgentRun,
   RagChatResponse,
   RagChunk,
@@ -118,4 +119,9 @@ export const agentApi = {
     (await api.post<AgentApproval>(`/agent/approvals/${id}/approve`, { note })).data,
   reject: async (id: number, note?: string) =>
     (await api.post<AgentApproval>(`/agent/approvals/${id}/reject`, { note })).data,
+}
+
+export const trainingApi = {
+  runs: async () => (await api.get<TrainingRunInfo[]>('/training/runs')).data,
+  run: async (id: string) => (await api.get<TrainingRunInfo>(`/training/runs/${id}`)).data,
 }

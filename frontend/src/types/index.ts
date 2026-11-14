@@ -262,3 +262,27 @@ export interface AgentApproval {
   result: Record<string, unknown> | null
   created_at: string
 }
+
+// ── ML Laboratory (Phase G) ─────────────────────────────────────────────────
+
+export interface CheckpointInfo {
+  path: string
+  exists: boolean
+  sha256: string | null
+  size_bytes: number | null
+}
+
+export interface TrainingRunInfo {
+  run_id: string
+  task: string
+  seed: number
+  status: string
+  config: Record<string, unknown> | null
+  dataset: { name?: string; fingerprint?: string; kind?: string } | null
+  metrics: Record<string, unknown> | null
+  reason: string | null
+  created_at: string | null
+  completed_at: string | null
+  run_dir: string
+  checkpoints: CheckpointInfo[]
+}

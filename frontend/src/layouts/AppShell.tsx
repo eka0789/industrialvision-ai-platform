@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Activity, BookOpen, Bot, Boxes, ChevronRight, CircleGauge, Cctv, History, LogOut, Menu, Plus, Users, Wrench, X } from 'lucide-react'
+import { Activity, BookOpen, Bot, Boxes, ChevronRight, CircleGauge, Cctv, FlaskConical, History, LogOut, Menu, Plus, Users, Wrench, X } from 'lucide-react'
 import { systemApi } from '../api'
 import { Brand } from '../components/Brand'
 import { useApi } from '../hooks/useApi'
@@ -18,6 +18,7 @@ const navigation = [
   { to: '/knowledge', label: 'Knowledge AI', index: '07', icon: BookOpen },
   { to: '/agent', label: 'Operations Agent', index: '08', icon: Bot },
   { to: '/monitoring', label: 'Monitoring', index: '09', icon: Activity },
+  { to: '/lab', label: 'ML Lab', index: '10', icon: FlaskConical },
 ]
 
 export default function AppShell() {
@@ -34,7 +35,7 @@ export default function AppShell() {
     : liveStatus === 'connecting'
       ? 'Menyambung feed…'
       : 'Feed langsung nonaktif'
-  const items = user?.role === 'admin' ? [...navigation, { to: '/admin', label: 'Akses pengguna', index: '10', icon: Users }] : navigation
+  const items = user?.role === 'admin' ? [...navigation, { to: '/admin', label: 'Akses pengguna', index: '11', icon: Users }] : navigation
 
   const closeMenu = () => setMenuOpen(false)
 
