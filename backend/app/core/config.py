@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     # Set true when TLS terminates in front of the app (honours X-Forwarded-Proto).
     TRUST_PROXY_HEADERS: bool = False
 
+    # Session token storage for the SPA: "body" returns tokens in JSON bodies
+    # (API clients, current default). "cookie" sets httpOnly cookies instead and
+    # enforces double-submit CSRF on unsafe methods.
+    AUTH_TOKEN_STORAGE: Literal["body", "cookie"] = "body"
+    # None = auto (secure cookies in production, relaxed in dev). Set explicitly
+    # when running production-behind-TLS on plain HTTP internally.
+    AUTH_COOKIE_SECURE: bool | None = None
+
     MODEL_ROOT: str = "models"
     DEFAULT_ONNX_MODEL: str = "model.onnx"
     ONNX_DEVICE: Literal["cpu", "cuda"] = "cpu"

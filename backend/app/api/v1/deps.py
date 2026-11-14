@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -14,12 +14,22 @@ security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
-    if credentials is None or credentials.scheme.lower() != "bearer":
+    """Resolve the caller from the Authorization header, or (cookie mode) the
+    httpOnly access cookie. The header always wins so API clients are
+    unaffected by the SPA cookie mode."""
+    token: str | None = None
+    if credentials is not None and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    else:
+        from app.services.session_cookies import bearer_token_from_request
+
+        token = bearer_token_from_request(request)
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid bearer token")
-    token = credentials.credentials
     try:
         from app.core.jwt import decode_token
 

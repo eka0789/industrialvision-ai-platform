@@ -42,6 +42,38 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             observe_http(path, request.method, status_code, duration)
 
 
+class CsrfMiddleware(BaseHTTPMiddleware):
+    """Double-submit CSRF enforcement for cookie session mode only.
+
+    In body mode (default) this middleware is a no-op — bearer tokens are not
+    ambient credentials, so CSRF does not apply. In cookie mode every unsafe
+    method must present ``X-CSRF-Token`` matching the ``iv_csrf`` cookie,
+    except the pre-session endpoints listed in CSRF_EXEMPT_PATHS (login /
+    refresh establish the pair; health/metrics are read-only).
+    """
+
+    UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+    async def dispatch(self, request: Request, call_next):
+        from app.services.session_cookies import CSRF_EXEMPT_PATHS, cookie_mode, verify_csrf
+
+        if (
+            cookie_mode()
+            and request.method.upper() in self.UNSAFE_METHODS
+            and request.url.path not in CSRF_EXEMPT_PATHS
+        ):
+            try:
+                verify_csrf(request)
+            except Exception as exc:
+                from fastapi.responses import JSONResponse
+
+                return JSONResponse(
+                    status_code=getattr(exc, "status_code", 403),
+                    content={"detail": getattr(exc, "detail", "CSRF verification failed")},
+                )
+        return await call_next(request)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI):
     await event_bus.startup()
@@ -66,7 +98,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Metrics (outermost so every request is counted) then CORS.
+    # Middleware stack: metrics (outermost) -> CORS -> CSRF (no-op in body mode).
     _app.add_middleware(MetricsMiddleware)
     _app.add_middleware(
         CORSMiddleware,
@@ -75,6 +107,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    _app.add_middleware(CsrfMiddleware)
 
     # Prometheus exposition. Unauthenticated by design: only reachable on the
     # internal Docker network (nginx does not proxy /metrics).

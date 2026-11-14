@@ -200,3 +200,21 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   manifest with correct sha256/file_count; retention prunes old sets and `--retention-days 0`
   keeps them; missing pg_dump fails real mode). Note: tests pass Git Bash paths (`_posix`) because
   MSYS tar treats `C:\...` as a remote host; in Linux/containers plain paths work.
+
+- [x] **A5 — httpOnly-cookie session mode + CSRF.** `AUTH_TOKEN_STORAGE=body|cookie` (default
+  `body` = exactly the previous behavior; API clients unaffected). Cookie mode: login sets
+  `iv_access` (httpOnly, SameSite=Lax, `/`), `iv_refresh` (httpOnly, SameSite=Strict, path-scoped
+  to `/auth/refresh`), and `iv_csrf` (readable by JS for double-submit) — bodies carry empty token
+  strings plus `token_storage: "cookie"` so clients can pick their strategy. `get_current_user`
+  falls back to the access cookie (header wins). `CsrfMiddleware` (no-op in body mode) rejects
+  unsafe methods in cookie mode unless `X-CSRF-Token` matches the `iv_csrf` cookie, fail-closed,
+  with only pre-session endpoints (`/auth/login`, `/auth/refresh`, `/health`, `/metrics`, `/`)
+  exempt. Silent refresh: cookie mode reads the rotated token from the cookie; rotation semantics
+  unchanged (old token dead after use). Logout revokes + clears all three cookies. `Secure` cookies
+  automatic in production (`AUTH_COOKIE_SECURE` override). Threat-model notes added to
+  docs/OPERATIONS.md §7.1 (mechanism, exemptions rationale, residual risks: login-CSRF, JS-readable
+  CSRF cookie by design, WS unaffected). Verified: `python -m unittest tests.test_cookie_sessions
+  tests.test_auth tests.test_refresh_tokens tests.test_auth_security` → 26 tests OK (mode matrix:
+  body mode returns tokens & sets no cookies & needs no CSRF; cookie mode e2e login → me → CSRF
+  rejection without/with wrong header → pass with correct header → silent refresh via cookie with
+  rotation → stale-token 401 → logout clears cookies; safe methods exempt). Full suite 286 OK.

@@ -25,7 +25,9 @@ class TokenRequest(BaseModel):
 
 
 class TokenRefreshRequest(BaseModel):
-    refresh_token: str
+    # In cookie mode this may be empty: the refresh token rides in the
+    # httpOnly iv_refresh cookie (path-scoped to /auth/refresh).
+    refresh_token: str = ""
 
 
 class TokenRefreshResponse(BaseModel):
@@ -34,6 +36,10 @@ class TokenRefreshResponse(BaseModel):
     token_type: str = "bearer"
     role: str
     user_id: int
+    # "body" = tokens in body (default); "cookie" = tokens in httpOnly cookies
+    # and the body fields are empty strings. Clients pick their storage
+    # strategy from this field.
+    token_storage: str = "body"
 
 
 class UserRead(BaseModel):
@@ -47,3 +53,4 @@ class LoginResponse(BaseModel):
     token: Token
     user: UserRead
     refresh_token: str
+    token_storage: str = "body"

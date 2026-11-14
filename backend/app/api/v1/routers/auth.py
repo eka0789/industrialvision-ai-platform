@@ -19,6 +19,13 @@ from app.services.auth_security import (
     record_logout,
 )
 from app.services.refresh_tokens import issue_refresh_token, revoke_all_user_tokens, rotate_refresh_token
+from app.services.session_cookies import (
+    bearer_token_from_request,
+    clear_auth_cookies,
+    cookie_mode,
+    refresh_token_from_request,
+    set_auth_cookies,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,6 +34,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def login(
     payload: TokenRequest,
     request: Request,
+    response: Response,  # FastAPI injects; cookies set here merge into the final response
     db: Session = Depends(get_db),
 ) -> LoginResponse:
     username = payload.username
@@ -76,6 +84,22 @@ def login(
 
     access_token = create_access_token(user.id, user.role.name)
     refresh_plain, _ = issue_refresh_token(db, user, ip, user_agent)
+
+    if cookie_mode():
+        # Tokens ride in httpOnly cookies; the body never carries them.
+        set_auth_cookies(response, access_token, refresh_plain)
+        return LoginResponse(
+            token=Token(access_token="", token_type="bearer", role=user.role.name, user_id=user.id),
+            user=UserRead(
+                id=user.id,
+                username=user.username,
+                role=user.role.name,
+                is_active=user.is_active,
+            ),
+            refresh_token="",
+            token_storage="cookie",
+        )
+
     return LoginResponse(
         token=Token(
             access_token=access_token,
@@ -97,13 +121,15 @@ def login(
 def refresh(
     payload: TokenRefreshRequest,
     request: Request,
+    response: Response,  # FastAPI injects; cookies set here merge into the final response
     db: Session = Depends(get_db),
 ) -> TokenRefreshResponse:
     """Exchange a valid shift-scoped refresh token for a new access token and a rotated refresh token."""
     ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
 
-    rotated = rotate_refresh_token(db, payload.refresh_token, ip, user_agent)
+    supplied_refresh = payload.refresh_token or refresh_token_from_request(request) or ""
+    rotated = rotate_refresh_token(db, supplied_refresh, ip, user_agent)
     if rotated is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,6 +142,16 @@ def refresh(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
 
     new_access_token = create_access_token(user.id, user.role.name)
+    if cookie_mode():
+        set_auth_cookies(response, new_access_token, new_refresh_plain)
+        return TokenRefreshResponse(
+            access_token="",
+            refresh_token="",
+            token_type="bearer",
+            role=user.role.name,
+            user_id=user.id,
+            token_storage="cookie",
+        )
     return TokenRefreshResponse(
         access_token=new_access_token,
         refresh_token=new_refresh_plain,
@@ -140,4 +176,7 @@ def logout(
     ip = request.client.host if request.client else None
     revoke_all_user_tokens(db, user.id)
     record_logout(db, user.id, ip)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    if cookie_mode():
+        clear_auth_cookies(response)
+    return response

@@ -214,6 +214,33 @@ responsibility — keep at least one set outside the host.
 - **Path Traversal Protection**: Evidence retrieval and storage are strictly contained below configured root paths with directory traversal prevention (`sanitize_path`).
 - **Fail-Safe Decision Rule**: Unhandled exceptions, missing models, or uncalibrated anomaly scores never result in a false `PASS`. Fail-safe defaults enforce `REVIEW` or `ERROR`.
 
+### 7.1 Session token storage and CSRF (threat-model notes)
+
+`AUTH_TOKEN_STORAGE` selects how the SPA holds session tokens:
+
+- **`body` (default)** — tokens are returned in JSON bodies (bearer-header
+  clients). CSRF is not applicable: bearer headers are not ambient credentials.
+- **`cookie`** — access + refresh tokens are `httpOnly` cookies (invisible to
+  JavaScript, so XSS cannot exfiltrate them); the SPA authenticates by sending
+  cookies. Because cookies are attached automatically, **every** unsafe method
+  (POST/PUT/PATCH/DELETE) must echo the double-submit CSRF token
+  (`iv_csrf` cookie value in the `X-CSRF-Token` header); mismatches are
+  rejected 403 by `CsrfMiddleware` (fail-closed: missing cookie, missing
+  header, or mismatch). `login`/`refresh` are exempt pre-session endpoints —
+  the refresh cookie is `SameSite=Strict` and path-scoped to `/auth/refresh`,
+  so cross-site requests never carry it. `Secure` cookies are automatic in
+  production (or force with `AUTH_COOKIE_SECURE=true`).
+
+Residual risks (documented, accepted): login-CSRF (attacker can cause a victim
+to log into the attacker's account — impact is limited because no privileged
+session is created for the victim); the CSRF cookie is readable by JS by
+design (double-submit requires it) — combined with httpOnly token cookies an
+XSS payload still cannot reuse stolen tokens off-browser, but XSS itself
+remains game over and is mitigated upstream (CSP, no inline scripts).
+
+WS endpoints are unaffected: they authenticate with the `bearer.<jwt>`
+subprotocol, never cookies.
+
 ---
 
 ## 8. Known Limitations & Workarounds
