@@ -2,6 +2,9 @@ import { api } from './client'
 import type {
   Camera,
   Machine,
+  RagChatResponse,
+  RagChunk,
+  RagDocument,
   MaintenanceRequest,
   PdmPrediction,
   CameraInput,
@@ -87,4 +90,17 @@ export const pdmApi = {
     (await api.post<MaintenanceRequest>(`/pdm/requests/${id}/approve`, { note })).data,
   rejectRequest: async (id: number, note?: string) =>
     (await api.post<MaintenanceRequest>(`/pdm/requests/${id}/reject`, { note })).data,
+}
+
+export const ragApi = {
+  documents: async () => (await api.get<RagDocument[]>('/rag/documents')).data,
+  upload: async (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return (await api.post<RagDocument>('/rag/documents', form, { timeout: 120_000 })).data
+  },
+  delete: async (id: number) => { await api.delete(`/rag/documents/${id}`) },
+  chunks: async (id: number) => (await api.get<RagChunk[]>(`/rag/documents/${id}/chunks`)).data,
+  chat: async (question: string) =>
+    (await api.post<RagChatResponse>('/rag/chat', { question }, { timeout: 120_000 })).data,
 }

@@ -104,3 +104,75 @@
 .prediction-grid dd { margin: 4px 0 0; font-size: 18px; font-weight: 600; }
 .prediction-mode { font-size: 13px; color: var(--muted, #666); }
 .prediction-modes { font-size: 13px; }
+
+/* ── Knowledge page (Phase C) ───────────────────────────────────────────── */
+
+.chat-section, .document-section, .chunk-section {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chat-section h2, .document-section h2 { display: flex; gap: 8px; align-items: center; font-size: 20px; }
+
+.chat-form { display: flex; gap: 10px; }
+.chat-form input {
+  flex: 1;
+  border: 1px solid var(--line, #ddd);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--surface, #fff);
+}
+
+.chat-status { display: flex; gap: 8px; align-items: center; color: var(--muted, #666); font-size: 13px; }
+
+.chat-answer {
+  border: 1px solid var(--line, #ddd);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--surface, #fff);
+}
+
+.chat-answer--refused { border-color: var(--warning, #b45309); }
+.refusal { font-weight: 600; }
+.chat-meta { font-size: 12px; color: var(--muted, #666); margin-top: 10px; }
+
+.citation-link {
+  background: none;
+  border: none;
+  color: var(--accent, #2563eb);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+.citation-list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 4px; }
+
+.document-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.document-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line, #ddd);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.document-info { flex: 1; }
+.document-info small { display: block; color: var(--muted, #666); }
+.document-error { color: var(--danger, #b91c1c); }
+.document-actions { display: flex; gap: 8px; align-items: center; }
+
+.chunk-head { display: flex; justify-content: space-between; align-items: center; }
+.chunk-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.chunk-item {
+  border: 1px solid var(--line, #ddd);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.chunk-index { font-family: var(--mono, monospace); font-size: 11px; text-transform: uppercase; color: var(--muted, #666); }
+.chunk-item p { margin-top: 6px; font-size: 14px; white-space: pre-wrap; }

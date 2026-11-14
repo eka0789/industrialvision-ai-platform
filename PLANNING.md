@@ -282,3 +282,37 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   modal for write roles), nav entry "Perawatan prediktif", responsive styles. E2E spec now includes
   `/maintenance` in the axe/390px sweep. `npm run build` + `tsc -b` clean; oxlint 0 errors.
   Verified: `python -m unittest tests.test_pdm tests.test_pdm_api` → 22 tests OK.
+
+## Phase C — Knowledge AI / RAG (port ForgeSight D, IV-grade)
+
+- [x] **C1 — Storage.** `rag_documents` / `rag_chunks` (org-scoped, migration `a00000000007`
+  verified upgrade/downgrade on SQLite). Embeddings stored JSON-encoded; the storage adapter
+  (`app/rag/storage.py`) picks `PgVectorStore` (SQL-side cosine when the pgvector extension is
+  available on PostgreSQL) or `NumpyJsonStore` (bounded in-memory scan) — `/rag/storage` reports
+  the active backend honestly.
+- [x] **C2 — Ingestion.** `app/rag/ingestion.py` + registered task `rag_ingest_document` on the
+  existing worker queue: validate (type/extension/size/signature hardening) → extract (TXT/MD/CSV
+  stdlib, PDF via pinned `pypdf`, DOCX optional `python-docx` — missing dep = structured failure)
+  → fixed-size overlapping chunks with page tracking → embed → store. All-or-nothing per document:
+  failures mark `failed` with reason and ZERO chunks (test-enforced no-partial-document).
+- [x] **C3 — Embedding providers.** OpenAI (guarded) / sentence-transformers (optional extra,
+  explicit selection) / deterministic `local-hashing` fallback (dim 384, documented properties,
+  always labeled). Adapter self-reports provider+dim; dim mismatch at ingest → structured rejection.
+- [x] **C4 — Hybrid retrieval.** BM25-lite (stdlib, k1=1.5 b=0.75) + vector cosine, Reciprocal Rank
+  Fusion (k=60). Empty retrieval is a first-class outcome feeding the refusal path.
+- [x] **C5 — Grounded answers.** `app/rag/answers.py`: OpenAI/Gemini (guarded) or labeled
+  `mock-demo` extractive answerer (deterministic, no external calls). **Every `[n]` citation is
+  validated against real retrieved chunk ids — violation raises `CitationError` (test-enforced).**
+  Prompt-injection defense: explicit untrusted-source delimiting + sentence-level sanitization
+  (documented patterns) + output-side neutralization; adversarial fixture tested ("ignore all
+  previous instructions" dropped, real data kept). Empty retrieval → structured refusal, never
+  fabrication.
+- [x] **C6 — API + frontend.** `/rag/documents` (upload 202 + queue, list, chunks, delete admin-only),
+  `/rag/chat` (per-user rate limit 12/min, refusal surfaced), `/rag/storage`. RBAC: viewer read,
+  operator+ upload, admin delete; org-scoped; audit-logged (`rag.document.uploaded/deleted`).
+  `KnowledgePage`: upload with hardening-limited types, document status incl. failure reasons,
+  chunk viewer, chat with inline `[n]` citation links to the chunk viewer, honest provider labels
+  (`mock-demo` = "jawaban ekstraktif lokal — tanpa LLM eksternal"), refusal shown as an alert.
+  Route + nav wired; e2e axe sweep includes `/knowledge`.
+  Verified: `python -m unittest tests.test_rag tests.test_rag_api` → 24 tests OK. Full suite **335
+  tests OK** (4 skips). Frontend `tsc -b && vite build` clean, oxlint 0 errors.

@@ -184,3 +184,41 @@ export interface MaintenanceRequest {
   decision_note: string | null
   created_at: string
 }
+
+// ── Knowledge AI / RAG (Phase C) ────────────────────────────────────────────
+
+export interface RagDocument {
+  id: number
+  title: string
+  filename?: string
+  status: 'pending' | 'processing' | 'ready' | 'failed'
+  error?: string | null
+  chunk_count: number
+  embedding_provider?: string | null
+  embedding_dim?: number | null
+  size_bytes?: number
+  created_at?: string
+}
+
+export interface RagCitation {
+  index: number
+  chunk_id: number
+  document_id: number
+  page: number | null
+  snippet: string
+}
+
+export interface RagChatResponse {
+  status: 'answered' | 'refused'
+  answer: string
+  provider: string
+  citations: RagCitation[]
+}
+
+export interface RagChunk {
+  id: number
+  ordinal: number
+  page: number | null
+  content: string
+  sha256: string
+}

@@ -39,3 +39,39 @@ def run_video_inspection(camera_id: int, file_path: str, frame_interval: int = 1
         return asdict(result)
     finally:
         db.close()
+
+
+@register_task("rag_ingest_document")
+def run_rag_ingestion(document_id: int) -> dict:
+    """Extract → chunk → embed → store for one uploaded document (all-or-nothing)."""
+    from app.db.session import SessionLocal
+    from app.rag.ingestion import ingest_document
+
+    db = SessionLocal()
+    try:
+        return ingest_document(db, document_id)
+    finally:
+        db.close()
+
+
+@register_task("pdm_prune_sensor_readings")
+def run_pdm_prune() -> dict:
+    """Delete sensor readings older than the retention window (B1 policy)."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.core.config import settings
+    from app.db.models import SensorReading
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=settings.PDM_SENSOR_RETENTION_DAYS)
+        deleted = (
+            db.query(SensorReading)
+            .filter(SensorReading.recorded_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        return {"deleted": int(deleted), "cutoff": cutoff.isoformat()}
+    finally:
+        db.close()

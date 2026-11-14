@@ -83,6 +83,17 @@ class Settings(BaseSettings):
     # older than the retention window is pruned by a background task.
     PDM_DATASET_CSV: str = "data/pdm/ai4i2020.csv"
     PDM_SENSOR_RETENTION_DAYS: int = Field(default=180, ge=1, le=3650)
+
+    # Knowledge AI / RAG (Phase C). Empty LLM keys keep the labeled mock-demo
+    # answerer; embeddings fall back to the documented local hashing scheme.
+    RAG_EMBEDDING_PROVIDER: str = "auto"  # auto | local-hashing | openai | sentence-transformers
+    RAG_LLM_PROVIDER: str = "auto"  # auto | mock-demo | openai | gemini
+    RAG_CHUNK_SIZE: int = Field(default=800, ge=100, le=4000)
+    RAG_CHUNK_OVERLAP: int = Field(default=100, ge=0, le=1000)
+    RAG_MAX_UPLOAD_BYTES: int = Field(default=25 * 1024 * 1024, gt=0)
+    RAG_TOP_K: int = Field(default=5, ge=1, le=20)
+    OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     DEFAULT_ONNX_MODEL: str = "model.onnx"
     ONNX_DEVICE: Literal["cpu", "cuda"] = "cpu"
     CONF_THRESHOLD: float = Field(default=0.25, ge=0.0, le=1.0)

@@ -553,3 +553,73 @@ class MaintenanceSchedule(Base):
 
     def __repr__(self) -> str:
         return f"<MaintenanceSchedule(id={self.id}, machine={self.machine_id})>"
+
+
+# ---------------------------------------------------------------------------
+# Knowledge AI / RAG (Phase C) — org-scoped.
+# ---------------------------------------------------------------------------
+
+
+class RagDocument(Base):
+    """An ingested knowledge document (PDF/TXT/DOCX/CSV)."""
+
+    __tablename__ = "rag_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    filename: Mapped[str] = mapped_column(String(300), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding_provider: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    embedding_dim: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    uploaded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), default=now, nullable=False
+    )
+
+    chunks: Mapped[list["RagChunk"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (Index("ix_rag_documents_org_status", "org_id", "status"),)
+
+    def __repr__(self) -> str:
+        return f"<RagDocument(id={self.id}, status={self.status}, chunks={self.chunk_count})>"
+
+
+class RagChunk(Base):
+    """A chunk of a document with its embedding vector.
+
+    The embedding is stored JSON-encoded (list of floats) for both SQLite and
+    PostgreSQL deployments; vector similarity is computed in the storage
+    adapter (``app/rag/storage.py``) which uses pgvector SQL cosine when the
+    extension is available on PostgreSQL and a bounded numpy scan otherwise.
+    """
+
+    __tablename__ = "rag_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    document_id: Mapped[int] = mapped_column(ForeignKey("rag_documents.id"), nullable=False, index=True)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+
+    document: Mapped["RagDocument"] = relationship(back_populates="chunks")
+
+    def __repr__(self) -> str:
+        return f"<RagChunk(id={self.id}, document={self.document_id}, ordinal={self.ordinal})>"
