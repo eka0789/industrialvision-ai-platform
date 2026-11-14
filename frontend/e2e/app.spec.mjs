@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { chromium } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 
-const baseURL = 'http://127.0.0.1:5173'
+const baseURL = 'http://localhost:5173'
 const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
 const page = await context.newPage()

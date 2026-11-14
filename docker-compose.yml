@@ -8,7 +8,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-iv_user}
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD environment variable must be set}"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # postgres:18+ expects ONE mount at /var/lib/postgresql (data lives in a
+      # versioned subdirectory, keeping pg_upgrade feasible).
+      - postgres_data:/var/lib/postgresql
     # Security: No public port exposed. Only reachable within internal bridge network
     networks:
       - internal-net
@@ -38,12 +40,13 @@ services:
       start_period: 5s
     security_opt:
       - no-new-privileges:true
-    # redis runs as its own unprivileged user in the official image; drop
-    # capabilities it does not need.
+    # Run as the image's unprivileged `redis` user (uid 999) so the
+    # entrypoint skips its root-only chown; capabilities stay dropped.
+    user: redis
     cap_drop:
       - ALL
     tmpfs:
-      - /data
+      - /data:uid=999,gid=999
 
   backend:
     build:
@@ -120,6 +123,13 @@ services:
       - model_data:/app/models
     networks:
       - internal-net
+    # The worker serves no HTTP; liveness = RQ process alive + Redis reachable.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, redis; redis.Redis.from_url(os.environ['REDIS_URL']).ping()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     security_opt:
       - no-new-privileges:true
 
@@ -173,8 +183,12 @@ services:
       - prometheus_data:/prometheus
     networks:
       - internal-net
+      # frontend-net is required on Docker Desktop: published ports do not
+      # route for internal-only networks there. Host exposure stays controlled
+      # by the 127.0.0.1 loopback binding (never reachable from other hosts).
+      - frontend-net
     ports:
-      # Operator access only; never exposed publicly (metrics are internal).
+      # Loopback-bound operator access; not reachable from other machines.
       - "127.0.0.1:9090:9090"
     depends_on:
       backend:
@@ -208,8 +222,9 @@ services:
       - grafana_data:/var/lib/grafana
     networks:
       - internal-net
+      - frontend-net  # see the prometheus note about Docker Desktop port publishing
     ports:
-      # Operator access only (127.0.0.1); put a TLS proxy in front for remote use.
+      # Loopback-bound operator access; put a TLS proxy in front for remote use.
       - "127.0.0.1:3001:3000"
     depends_on:
       prometheus:

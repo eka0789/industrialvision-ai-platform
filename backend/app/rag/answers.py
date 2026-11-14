@@ -151,12 +151,35 @@ def _gemini_answer(question: str, context: str) -> str:
     return model.generate_content(prompt).text or ""
 
 
+# Lexical relevance gate: cosine on hashed vectors is > 0 for ANY text pair
+# sharing even function words, so "non-empty retrieval" alone is not evidence
+# of relevance. At least one non-stopword question token must appear in the
+# retrieved content, otherwise the service refuses (honest, test-enforced).
+_STOPWORDS = frozenset(
+    "a an and are as at be by for from how in is it of on or that the this to "
+    "was what when where which who why will with".split()
+)
+
+
+def _has_lexical_overlap(question: str, chunks: list[RetrievedChunk]) -> bool:
+    from app.rag.retrieval import _tokenize
+
+    question_tokens = {token for token in _tokenize(question) if token not in _STOPWORDS}
+    if not question_tokens:  # pure-stopword question: nothing to ground on
+        return False
+    for chunk in chunks:
+        content_tokens = set(_tokenize(chunk.content))
+        if question_tokens & content_tokens:
+            return True
+    return False
+
+
 def answer_question(db, *, org_id: int, question: str, top_k: int | None = None) -> GroundedAnswer:
     """Retrieval → refusal-or-grounded-answer with enforced citations."""
     from app.core.config import settings
 
     chunks = retrieve(db, org_id=org_id, query=question, top_k=top_k)
-    if not chunks:
+    if not chunks or not _has_lexical_overlap(question, chunks):
         return GroundedAnswer(
             status="refused",
             answer="Tidak ditemukan sumber yang relevan di basis pengetahuan. Jawaban ditolak daripada mengarang.",

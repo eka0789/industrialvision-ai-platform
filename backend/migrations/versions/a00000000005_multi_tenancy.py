@@ -81,7 +81,7 @@ def upgrade() -> None:
     )
     op.execute(
         "INSERT INTO organizations (id, name, slug, is_active) "
-        "VALUES (1, 'Default Organization', 'default', 1)"
+        "VALUES (1, 'Default Organization', 'default', TRUE)"
     )
 
     for table in TENANT_TABLES:

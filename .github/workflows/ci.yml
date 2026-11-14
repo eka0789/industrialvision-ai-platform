@@ -33,6 +33,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Compile check (bytecode verification)
         run: |
@@ -47,7 +48,7 @@ jobs:
           python -m unittest discover -s tests -v
 
   backend-integration:
-    name: Backend Integration (PostgreSQL + Alembic)
+    name: Backend Integration (PostgreSQL + Alembic + Redis)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -59,6 +60,14 @@ jobs:
         ports: [5432:5432]
         options: >-
           --health-cmd "pg_isready -U iv_user -d industrialvision"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -84,6 +93,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run Alembic migrations against PostgreSQL
         env:
@@ -93,6 +103,8 @@ jobs:
           JWT_SECRET: ci-test-secret-value-that-is-at-least-32-characters-long
           CORS_ORIGINS: https://ci.example
           DEMO_LIVE_FEED: "false"
+          REDIS_URL: redis://localhost:6379/0
+          TASK_QUEUE_MODE: rq
         run: |
           alembic upgrade head
 
@@ -104,6 +116,8 @@ jobs:
           JWT_SECRET: ci-test-secret-value-that-is-at-least-32-characters-long
           CORS_ORIGINS: https://ci.example
           DEMO_LIVE_FEED: "false"
+          REDIS_URL: redis://localhost:6379/0
+          TASK_QUEUE_MODE: rq
         run: |
           python -m unittest discover -s tests -v
 

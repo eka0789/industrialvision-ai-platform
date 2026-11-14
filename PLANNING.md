@@ -411,3 +411,50 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   routing denies traversal); auth required; e2e sweep includes `/lab`.
   Verified: `python -m unittest tests.test_lab` → 3 tests OK. Full suite **376 tests OK** twice
   consecutively (4 pre-existing skips). Frontend build + oxlint clean.
+
+## Phase H — Final integration & release gate
+
+- [x] **H1 — Full Compose stack executed end-to-end on real Docker** (Docker 29.9.2 /
+  Compose v5.6.1 on this workstation). All seven services healthy: postgres:18 (single-mount
+  fix for the 18+ image), redis:7 (unprivileged user + tmpfs so the entrypoint skips chown),
+  backend + worker (custom healthchecks; worker = Redis ping, no HTTP), frontend nginx TLS,
+  prometheus (targets UP: industrialvision-backend + self), grafana (Prometheus datasource +
+  "IndustrialVision — Platform Overview" dashboard provisioned; loopback-bound access; both
+  services also joined frontend-net because Docker Desktop cannot publish ports for
+  internal-only networks — access control remains the 127.0.0.1 binding). Entrypoint ran
+  `alembic upgrade head` (all 9 migrations) on a fresh volume; two real bugs found and fixed:
+  migration boolean literal (`1` → `TRUE` — SQLite tolerated it, PostgreSQL did not) and the
+  event-bus client factory referencing `redis.Redis` without importing it (masked by the fake
+  transport in tests; regression test added). Smoke (`scripts/compose_smoke.sh`) — **16/16 PASS**:
+  /health reports `event_bus {mode: redis, connected: true}` + `worker {mode: rq}`; TLS SPA 200;
+  login; all new-module endpoints (pdm/rag/agent/models/training/reports); foreign org id 404;
+  `iv_` metrics exposition; **`python -m app.seed` refused in the production container**.
+  Functional walkthrough (10 flows) against the live stack — **all PASS**: machine → readings →
+  prediction (honest `rules-only-fallback`, health 0.0, TWF+HDF flagged); maintenance request →
+  self-approval 403 → owner approves → complete; RAG upload → ready → answered with 2 citations →
+  refusal for unrelated question (after adding the lexical relevance gate — see below); agent chat
+  with tool logs; agent approval minted → executed as the approving owner; worker-rendered CSV
+  report; chat rate limit 429 observed. Frontend walkthrough: axe sweep over all 11 routes
+  (**0 WCAG 2.1 AA violations**) + 390px mobile sweep clean (script exits 0). TLS cert is
+  self-signed (smoke only, documented).
+- [x] **H2 — Load sanity** (honest, Docker-Desktop-on-Windows workstation numbers): PdM predict
+  n=30 P50 24.7 ms / P95 44.0 ms; agent runs list n=30 P50 21.4 / P95 51.4; reports list n=30
+  P50 17.0 / P95 37.2; RAG chat n=12 — **below the 30-sample minimum** (chat rate limit), P50 27.5 /
+  P95 38.2 reported as indicative only. No claims beyond these measured windows.
+- [x] **H3 — Security review pass.** `docs/SECURITY_REVIEW.md`: attack-surface matrix (ingestion
+  signatures, path traversal, agent RBAC/approval gates, citation enforcement, CSRF, tenant
+  isolation, worker dead-letter) each with its enforcing control and proving test; SSRF review
+  (no user-supplied URL fetching anywhere; URL-fetching agent tools forbidden by design);
+  rate-limit table; audit-coverage matrix; residual risks documented.
+- [x] **H4 — Docs.** `docs/ARCHITECTURE.md` (updated diagram + module map), `docs/MODEL_CARDS.md`
+  (PdM classifier/RUL, local-hashing embeddings, mock-demo answerer, anomaly banks — each stating
+  its data kind and absence-of-metrics honestly), `docs/CHANGELOG.md`, README features/
+  architecture/limitations rewritten with verified-vs-unvalidated separation, OPERATIONS.md §6/§7.1
+  extended (MJPEG latency budget, cookie/CSRF threat model).
+- [x] **H5 — Release gate.** Full backend suite **377 tests OK** on SQLite (4 pre-existing skips;
+  backup-script env-precedence bug found and fixed during the gate). Frontend `tsc -b && vite
+  build` + oxlint clean; axe 0 violations (above). Compose smoke green (above). CI workflow
+  updated: requirements-dev (fakeredis) installed, Redis service container added to the
+  PostgreSQL integration job, production env vars (REDIS_URL, TASK_QUEUE_MODE=rq) set so the
+  hardened validator passes in CI. PostgreSQL CI execution runs on GitHub Actions infrastructure.
+  PLANNING.md reconciled — every box above carries recorded evidence.

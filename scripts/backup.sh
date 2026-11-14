@@ -23,13 +23,23 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEFAULT_OUTPUT="${ROOT_DIR}/backups"
 MANIFEST_SCHEMA_VERSION="2"
 
-# Load .env if present (for local testing)
-if [[ -f "${ROOT_DIR}/.env" ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source "${ROOT_DIR}/.env"
-    set +a
-fi
+# Load .env if present. Precedence: real environment > .env > script defaults
+# (standard dotenv semantics — a value already in the environment is never
+# overwritten by the file).
+load_env_file() {
+    [[ -f "$1" ]] || return 0
+    local key value
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[[:space:]]*($|#) ]] && continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        if [[ -z "${!key+x}" ]]; then
+            export "$key=$value"
+        fi
+    done < "$1"
+}
+load_env_file "${ROOT_DIR}/.env"
 
 POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"

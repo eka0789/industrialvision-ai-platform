@@ -208,3 +208,24 @@ class RedisEventBusTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RealFactoryTests(unittest.TestCase):
+    """The production client factory must construct working clients (A1 bug
+    fix regression: `redis.Redis` was referenced without being imported)."""
+
+    def test_default_factory_returns_paired_clients(self):
+        from app.services.event_bus import _default_client_factory
+
+        sync_client, async_client = _default_client_factory("redis://localhost:6399/0")
+        self.assertIsNotNone(sync_client)
+        self.assertIsNotNone(async_client)
+        try:
+            sync_client.close()
+            asyncio.run(async_client.aclose())
+        except Exception:  # noqa: BLE001 - cleanup best-effort (no server here)
+            pass
+
+
+if __name__ == "__main__":
+    unittest.main()

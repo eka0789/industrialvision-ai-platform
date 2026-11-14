@@ -60,6 +60,23 @@
   - `operator`: daily inspection execution, evidence review, operational status changes for stations.
 - **Accessibility & Mobile Standards:**
   Passes automated **WCAG 2.1 AA** compliance checks (text contrast, keyboard focus, native modal focus containment) and adaptive mobile layout on 390 px viewports without horizontal overflow.
+- **Predictive Maintenance (Phase B):** machines + AI4I-schema sensor readings, fail-safe
+  predictions (model / rules-only-fallback / error modes), approval-gated maintenance requests,
+  training pipelines that reuse the run lifecycle and model registry (validation-selected among
+  3 candidates, held-out test metrics only).
+- **Knowledge AI / RAG (Phase C):** hardened document ingestion on the worker queue, hybrid
+  BM25+vector retrieval with RRF fusion, grounded answers with 1:1 citation enforcement and
+  prompt-injection sanitization; empty retrieval refuses to answer instead of fabricating.
+- **Operations Agent (Phase D):** org-scoped tools with execution-time RBAC, bounded state graph
+  (iteration caps, per-tool timeouts), and persisted human-in-the-loop approvals — side effects
+  execute only with an owner/admin approver's identity.
+- **MLOps (Phase E):** model stage lifecycle (development/staging/production with an evaluation
+  gate and one-production rule), PSI drift detection against training-time reference stats,
+  optional MLflow mirroring, Monitoring page.
+- **Scaling foundation (Phase A):** Redis pub/sub event bus with explicit in-memory fallback,
+  RQ worker service with dead-letter handling, Prometheus + Grafana with provisioned dashboards
+  and alert rules, checksum-verified backups with retention, multi-tenancy (organizations +
+  org_id everywhere).
 
 ---
 
@@ -80,6 +97,11 @@ The platform follows a **Modular Monolith** pattern with clear separation betwee
   ├── Camera Service & Capture Worker (Bounding Deque, RTSP Redaction)
   ├── Inference & Anomaly Engine (ONNX Runtime, NumPy Adapters)
   ├── Decision Engine (Rules-based Evaluation: PASS / FAIL / REVIEW / ERROR)
+  ├── Predictive Maintenance (pdm/: dataset mirror, training, fail-safe inference)
+  ├── Knowledge AI (rag/: hybrid retrieval, grounded answers, citation enforcement)
+  ├── Operations Agent (agent/: tools, bounded graph, HITL approvals)
+  ├── MLOps (model stages, PSI drift, optional MLflow mirror)
+  ├── Event Bus (in-memory ⇄ Redis pub/sub, /health-visible) & Task Queue (RQ + in-process)
   └── Evidence Storage (Server-rooted, Collision-safe UUIDs)
                  │
         ┌────────┴────────┐
@@ -514,13 +536,23 @@ SVG bounding boxes are calculated using the image's natural dimensions and then 
 
 ### Verified by test
 
-235 backend tests and the frontend typecheck/build run in CI, including a PostgreSQL 18 job that applies every migration and runs the suite against a real database.
+376 backend tests (unittest) cover the vision core plus the PdM/RAG/agent/MLOps/lab modules,
+multi-tenancy isolation, worker/queue behavior (RQ via fakeredis), the Redis event bus (fake
+transport), cookie/CSRF mode matrix, and checksum-verified backups. The frontend typecheck/build
+and the axe/390px sweep run over all routes, including a PostgreSQL 18 CI job that applies every
+migration and runs the suite against a real database. The Compose stack itself was executed on
+the authoring workstation (see PLANNING.md Phase H for the recorded smoke output).
 
 ### Known limitations
 
 - **Model validation:** activating a model only marks the artefact as available for inference; it does not certify defect-detection accuracy. Threshold calibration against your own defect set is still required.
-- **Direct video streaming:** live WebRTC/RTSP decode into the browser is not implemented end-to-end; validated workflows use image upload and the event feed.
-- **Single-process event bus:** the live feed/WebSocket fan-out is in-process. Do not run multiple backend replicas without replacing `event_bus` with a shared broker (for example Redis pub/sub), otherwise each replica only sees its own events and the demo feed would run more than once.
+- **Direct video streaming:** the browser path is authenticated MJPEG over fetch (no tokens in URLs) with client-side overlay composition from WS events — it is NOT WebRTC; expect ~0.5–2 s LAN latency rather than sub-second glass-to-glass.
+- **Synthetic PdM data:** the predictive-maintenance training set is a documented synthetic mirror of AI4I 2020 (or a real CSV you provide at `PDM_DATASET_CSV`); no real fleet data has been used, and all reported metrics come only from completed runs recorded in their manifests.
+- **LLM providers without keys:** answers and agent planning run in labeled `mock-demo` mode (deterministic, extractive, local) until `OPENAI_API_KEY`/`GEMINI_API_KEY` are configured; the active provider is always visible in API responses and the UI.
+- **pgvector:** vector similarity uses the pgvector SQL path when the extension exists on PostgreSQL and a bounded in-memory numpy scan otherwise (`/rag/storage` reports the active backend); no HNSW index is created yet, so very large chunk counts are O(n) per query.
+- **Chat rate limiting** is per-process; add an nginx `limit_req` (or Redis-backed limiter) in front of multi-replica deployments.
+- **Optional OCR** requires the tesseract binary; without it the service reports `unavailable-missing-tesseract` instead of pretending.
+- **PostgreSQL migration coverage:** the nine migrations are verified on SQLite here and exercised on PostgreSQL in CI; the pgvector extension itself is optional (see above).
 - **Token storage in the browser:** access and refresh tokens are kept in `sessionStorage`, or in `localStorage` when "remember me" is checked. The strict same-origin CSP (no inline or third-party scripts) mitigates the usual XSS vector, but httpOnly cookies would be stronger. Treat this as a hardening item if your threat model includes hostile extensions on operator workstations.
 - **Evidence backup is manual:** `scripts/backup.sh` covers the database only; the evidence volume must be archived separately.
 - **Docker images are not built in this environment:** the compose stack was reviewed and its config validated, but a full `docker compose up` has not been executed on this machine.

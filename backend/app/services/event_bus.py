@@ -101,9 +101,10 @@ ClientFactory = Callable[[str], tuple[Any, Any]]
 
 
 def _default_client_factory(redis_url: str) -> tuple[Any, Any]:
-    import redis.asyncio as aioredis  # imported lazily; the package is optional
+    import redis  # imported lazily; the package is optional
+    import redis.asyncio as aioredis
 
-    sync_client = redis.Redis.from_url(  # type: ignore[union-attr]
+    sync_client = redis.Redis.from_url(
         redis_url,
         socket_connect_timeout=2.0,
         socket_timeout=1.0,
