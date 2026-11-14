@@ -131,7 +131,28 @@ docker compose exec backend alembic current
 
 ## 5. Backup & Disaster Recovery
 
-### 5.1 Automated PostgreSQL Backup
+### 5.1 Unified backup script (recommended)
+
+`scripts/backup.sh` backs up the database **and** the evidence volume in one
+consistent operation, writes a JSON manifest with SHA-256 checksums, and prunes
+old backup sets by retention policy:
+
+```bash
+# Preview the plan without writing anything (safe; needs no pg_dump):
+./scripts/backup.sh --dry-run
+
+# Full backup with evidence archive, keep sets for 14 days:
+./scripts/backup.sh --output-dir /var/backups/industrialvision --evidence --retention-days 14
+```
+
+Each run produces `{timestamp}.dump[.gz]`, optionally
+`{timestamp}.evidence.tar.gz`, and `{timestamp}.manifest.json`. Manifest
+schema (version 2): `schema_version` (int), `timestamp`, `database`, `host`,
+`user`, `dump_file`, `size_bytes`, `dump_sha256`, `retention_days`, and an
+optional `evidence` object (`root`, `archive`, `size_bytes`, `sha256`,
+`file_count`). Restores refuse to proceed on checksum mismatch.
+
+### 5.2 Docker one-liner alternative (database only)
 
 ```bash
 #!/bin/bash
@@ -143,17 +164,30 @@ docker compose exec -T postgres pg_dump -U iv_user industrialvision | gzip > "$B
 echo "Backup created at $BACKUP_DIR/db_$TIMESTAMP.sql.gz"
 ```
 
-### 5.2 Evidence Storage Backup
+### 5.3 Restore drill (run quarterly; time it and record the result)
 
-```bash
-tar -czf "$BACKUP_DIR/evidence_$TIMESTAMP.tar.gz" -C backend/data/evidence .
-```
+1. **Provision an empty restore target** (fresh PostgreSQL database + empty
+   evidence directory). Never rehearse on production.
+2. **Pick the newest manifest** and verify it before trusting the archive:
+   `./scripts/backup.sh restore --backup-file <dump>` re-hashes the dump and
+   compares against `dump_sha256` in the adjacent manifest; a mismatch aborts.
+3. **Restore the database**: the same `restore` command runs `pg_restore
+   --clean --if-exists` into the target.
+4. **Restore evidence**: if `{timestamp}.evidence.tar.gz` sits beside the dump,
+   it is extracted into `--evidence-dir`; compare the extracted file count
+   against the manifest's `evidence.file_count`.
+5. **Migrate & verify**: run `alembic upgrade head` if the restored schema is
+   older, start the backend, log in, confirm `/health` reports `database: ok`
+   and a recent inspection detail renders its evidence.
+6. **Record**: date, backup timestamp restored, duration, issues found. A drill
+   that was never timed is not a drill.
 
-### 5.3 Restore Database
+### 5.4 Retention
 
-```bash
-gunzip < "$BACKUP_DIR/db_TIMESTAMP.sql.gz" | docker compose exec -T postgres psql -U iv_user -d industrialvision
-```
+`--retention-days N` (default 30) deletes complete backup sets (dump, evidence
+archive, manifest) older than N days based on the manifest mtime;
+`--retention-days 0` disables pruning. Off-site copies are the operator's
+responsibility — keep at least one set outside the host.
 
 ---
 

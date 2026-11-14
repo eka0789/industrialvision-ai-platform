@@ -186,3 +186,17 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   validates all 7 services (postgres, redis, backend, frontend, prometheus, grafana, worker) with
   required env set — Docker IS available on this workstation, so H1 compose execution is possible.
   prometheus-client pinned `>=0.21,<1`.
+
+- [x] **A4 — Evidence volume backup automation.** `scripts/backup.sh` now does database dump +
+  optional evidence tarball (`--evidence`) in one run, writes a schema-versioned JSON manifest
+  (v2: dump sha256, size, evidence root/archive/sha256/file_count, retention_days) generated via
+  an embedded Python block (no heredoc quoting bugs), prunes complete old backup sets by
+  `--retention-days` (0 = keep), and supports `--dry-run` which validates preconditions and writes
+  nothing (not even the output directory). `restore` re-hashes the dump against the manifest and
+  refuses on mismatch; evidence archives restore with file-count verification instructions.
+  `docs/OPERATIONS.md` §5 rewritten: manifest schema + quarterly timed restore drill.
+  Verified: `python -m unittest tests.test_backup_script` → 5 tests OK from `backend/` (dry-run
+  writes nothing & needs no pg tools; full backup with stub pg_dump produces dump+evidence+valid
+  manifest with correct sha256/file_count; retention prunes old sets and `--retention-days 0`
+  keeps them; missing pg_dump fails real mode). Note: tests pass Git Bash paths (`_posix`) because
+  MSYS tar treats `C:\...` as a remote host; in Linux/containers plain paths work.
