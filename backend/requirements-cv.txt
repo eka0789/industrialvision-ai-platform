@@ -2,3 +2,6 @@ opencv-python-headless
 pillow
 onnx
 onnxruntime
+# Predictive Maintenance training (Phase B): direct imports in app/pdm/train.py
+scikit-learn>=1.4,<2
+joblib>=1.3,<2

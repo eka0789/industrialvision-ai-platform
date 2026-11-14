@@ -179,13 +179,19 @@ class BackupScriptTests(unittest.TestCase):
             self.assertTrue(old_manifest.exists())
 
     def test_missing_pg_tools_fail_in_real_mode(self):
+        import shutil
+
         with tempfile.TemporaryDirectory() as tmp:
             empty_bin = Path(tmp) / "emptybin"
             empty_bin.mkdir()
+            # Resolve the interpreter BEFORE wiping PATH (on Linux "bash" only
+            # resolves via the original PATH; the script itself must still fail
+            # on missing pg_dump, not on a missing shell).
+            bash_absolute = shutil.which("bash") or BASH
             env = os.environ.copy()
             env["PATH"] = str(empty_bin)  # no pg_dump anywhere
             result = subprocess.run(
-                [BASH, str(BACKUP_SCRIPT), "backup", "--output-dir", _posix(tmp)],
+                [bash_absolute, str(BACKUP_SCRIPT), "backup", "--output-dir", _posix(tmp)],
                 capture_output=True, text=True, env=env, timeout=60,
             )
             self.assertNotEqual(result.returncode, 0)
