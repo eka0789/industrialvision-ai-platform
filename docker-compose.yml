@@ -160,6 +160,66 @@ services:
     cap_drop:
       - ALL
 
+  prometheus:
+    image: prom/prometheus:v3.7.2
+    container_name: industrialvision-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - internal-net
+    ports:
+      # Operator access only; never exposed publicly (metrics are internal).
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    user: "65534:65534"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    container_name: industrialvision-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      # Provisioned dashboards/datasource are read-only; admin password required.
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?Error: GRAFANA_ADMIN_PASSWORD environment variable must be set}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - internal-net
+    ports:
+      # Operator access only (127.0.0.1); put a TLS proxy in front for remote use.
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    user: "472:472"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
   postgres_data:
     name: industrialvision_postgres_data
@@ -167,6 +227,10 @@ volumes:
     name: industrialvision_evidence_data
   model_data:
     name: industrialvision_model_data
+  prometheus_data:
+    name: industrialvision_prometheus_data
+  grafana_data:
+    name: industrialvision_grafana_data
 
 networks:
   internal-net:

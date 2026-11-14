@@ -111,6 +111,9 @@ def _finish_error(
     camera.last_error = safe_message
     db.commit()
     db.refresh(inspection)
+    from app.services.metrics import record_decision
+
+    record_decision("ERROR")
     event_bus.publish(TOPIC_INSPECTIONS, InspectionOutDump(inspection))
     return InspectionOut.model_validate(_serialize_inspection(inspection))
 
@@ -216,6 +219,13 @@ async def inspect_image(
         camera.last_error = None
         db.commit()
         db.refresh(inspection)
+        from app.services.metrics import record_decision
+
+        record_decision(
+            inspection.decision,
+            latency_seconds=result.latency_ms / 1000.0 if result.latency_ms is not None else None,
+            camera_id=camera_id,
+        )
         event_bus.publish(TOPIC_INSPECTIONS, InspectionOutDump(inspection))
         return InspectionOut.model_validate(_serialize_inspection(inspection))
     except Exception as exc:

@@ -168,3 +168,21 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   unknown-task rejection; facade degrade+recover). Full suite: `python -m unittest discover -s tests`
   → **262 tests OK** (4 pre-existing skips). `rq` 2.12.0 pinned `rq>=2.0,<3` in requirements-core;
   `requirements-dev.txt` adds fakeredis (test-only).
+
+- [x] **A3 — Prometheus + Grafana into Compose with namespaced metrics.** `app/services/metrics.py`
+  exposes `iv_`-prefixed series on a dedicated registry: HTTP rate/latency (per route template),
+  inspection latency histogram, decision outcome counter, WebSocket connections gauge + opened
+  counter, and scrape-time component gauges (event bus connected, worker degraded, dead-lettered
+  tasks, DB reachable — read from the live objects at scrape, never cached). `MetricsMiddleware`
+  counts every request; decision recording is wired at both success and `_finish_error` paths; WS
+  gauges update on open/close. `/metrics` is unauthenticated by design and documented as
+  internal-network-only (nginx never proxies it). Compose adds hardened `prom/prometheus` (scrapes
+  backend + self, 15d retention, non-root uid, cap_drop ALL, 127.0.0.1:9090) and `grafana` (provisioned
+  datasource + dashboard, signup disabled, admin password required via env, 127.0.0.1:3001) plus
+  `deploy/prometheus/alerts.yml` (DB down, bus down, worker degraded, dead-letter increase, 5xx rate,
+  slow inspections). Verified: `python -m unittest tests.test_metrics` → 9 tests OK (exposition names,
+  counter/gauge behavior, middleware route-template counting, alert rules YAML parse incl. required
+  alerts, dashboard JSON parse, datasource URL). Full suite 271 tests OK. `docker compose config`
+  validates all 7 services (postgres, redis, backend, frontend, prometheus, grafana, worker) with
+  required env set — Docker IS available on this workstation, so H1 compose execution is possible.
+  prometheus-client pinned `>=0.21,<1`.

@@ -12,3 +12,4 @@ python-multipart
 python-dotenv
 redis>=6.0,<7
 rq>=2.0,<3
+prometheus-client>=0.21,<1

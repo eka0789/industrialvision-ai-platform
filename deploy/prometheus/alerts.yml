@@ -1,0 +1,59 @@
+groups:
+  - name: industrialvision-availability
+    rules:
+      - alert: BackendScrapeDown
+        expr: up{job="industrialvision-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend /metrics unreachable for 1 minute"
+
+      - alert: DatabaseDown
+        expr: iv_database_ok == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The backend cannot reach PostgreSQL (iv_database_ok=0)"
+
+      - alert: EventBusDisconnected
+        expr: iv_event_bus_connected == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Event bus disconnected — WebSocket fan-out degraded to local delivery"
+
+      - alert: WorkerDegraded
+        expr: iv_worker_degraded == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Background tasks running in-process because RQ enqueue failed"
+
+      - alert: TasksDeadLettered
+        expr: increase(iv_tasks_dead_lettered[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Background tasks exhausted retries and were dead-lettered"
+
+      - alert: HighHTTPTerrorRate
+        expr: |
+          sum(rate(iv_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(iv_http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx rate above 5% for 5 minutes"
+
+      - alert: SlowInspections
+        expr: histogram_quantile(0.95, sum(rate(iv_inspection_latency_seconds_bucket[10m])) by (le)) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 inspection latency above 5s for 10 minutes"

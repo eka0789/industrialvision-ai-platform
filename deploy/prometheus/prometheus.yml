@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    platform: industrialvision
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # Backend /metrics is unauthenticated and internal-network only.
+  - job_name: industrialvision-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+
+  - job_name: prometheus-self
+    static_configs:
+      - targets: ["localhost:9090"]

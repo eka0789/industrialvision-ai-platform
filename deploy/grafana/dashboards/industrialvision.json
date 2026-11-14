@@ -1,0 +1,90 @@
+{
+  "title": "IndustrialVision — Platform Overview",
+  "uid": "industrialvision-overview",
+  "tags": ["industrialvision"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service health",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "up{job=\"industrialvision-backend\"}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "mappings": [ { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ] }, "overrides": [] }
+    },
+    {
+      "id": 2,
+      "title": "Database reachable",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "iv_database_ok", "refId": "A" }],
+      "fieldConfig": { "defaults": { "mappings": [ { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "OK", "color": "green" } } } ] }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "title": "Event bus connected",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "iv_event_bus_connected", "refId": "A" }],
+      "fieldConfig": { "defaults": { "mappings": [ { "type": "value", "options": { "0": { "text": "DISCONNECTED", "color": "red" }, "1": { "text": "CONNECTED", "color": "green" } } } ] }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "title": "Worker mode (1 = degraded in-process)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "iv_worker_degraded", "refId": "A" }],
+      "fieldConfig": { "defaults": { "mappings": [ { "type": "value", "options": { "0": { "text": "RQ", "color": "green" }, "1": { "text": "DEGRADED", "color": "orange" } } } ] }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "title": "HTTP request rate by status",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{ "expr": "sum(rate(iv_http_requests_total[5m])) by (status)", "refId": "A", "legendFormat": "{{status}}" }]
+    },
+    {
+      "id": 6,
+      "title": "HTTP P95 latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(iv_http_request_duration_seconds_bucket[5m])) by (le))", "refId": "A", "legendFormat": "p95" }]
+    },
+    {
+      "id": 7,
+      "title": "Decisions",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{ "expr": "sum(rate(iv_inspection_decisions_total[5m])) by (decision)", "refId": "A", "legendFormat": "{{decision}}" }]
+    },
+    {
+      "id": 8,
+      "title": "Inspection latency P50/P95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(iv_inspection_latency_seconds_bucket[10m])) by (le))", "refId": "A", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(iv_inspection_latency_seconds_bucket[10m])) by (le))", "refId": "B", "legendFormat": "p95" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Open WebSocket connections",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 20 },
+      "targets": [{ "expr": "sum(iv_websocket_connections) by (endpoint)", "refId": "A", "legendFormat": "{{endpoint}}" }]
+    },
+    {
+      "id": 10,
+      "title": "Dead-lettered tasks",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 20 },
+      "targets": [{ "expr": "iv_tasks_dead_lettered", "refId": "A" }],
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] }
+    }
+  ]
+}

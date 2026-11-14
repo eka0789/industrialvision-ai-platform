@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import contextlib
+import time
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from app.api.v1.routers.admin import router as admin_router
 from app.api.v1.routers.auth import router as auth_router
@@ -18,6 +21,25 @@ from app.api.v1.routers.websockets import router as websockets_router
 from app.core.config import settings
 from app.services.event_bus import event_bus
 from app.services.live_feed import live_feed
+from app.services.metrics import render_metrics
+
+
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """Record request rate and latency per normalized endpoint template."""
+
+    async def dispatch(self, request: Request, call_next):
+        start = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            duration = time.perf_counter() - start
+            from app.services.metrics import observe_http
+
+            path = request.scope["route"].path if "route" in request.scope else request.url.path
+            observe_http(path, request.method, status_code, duration)
 
 
 @contextlib.asynccontextmanager
@@ -44,7 +66,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS
+    # Metrics (outermost so every request is counted) then CORS.
+    _app.add_middleware(MetricsMiddleware)
     _app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -52,6 +75,12 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Prometheus exposition. Unauthenticated by design: only reachable on the
+    # internal Docker network (nginx does not proxy /metrics).
+    @_app.get("/metrics", include_in_schema=False, tags=["system"])
+    def metrics() -> Response:
+        return Response(content=render_metrics(), media_type="text/plain; version=0.0.4; charset=utf-8")
 
     # Include routers
     _app.include_router(auth_router)
