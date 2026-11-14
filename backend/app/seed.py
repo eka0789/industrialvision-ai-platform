@@ -14,9 +14,11 @@ Usage (from ``backend/``)::
 
 Demo accounts (password documented in README, change for anything public):
 
+    owner      / Owner!Vision2026      (owner)
     admin      / Admin!Vision2026      (admin)
     operator1  / Operator!2026         (operator)
     aiengineer / Engineer!2026         (ai_engineer)
+    viewer     / Viewer!Vision2026     (viewer)
 """
 
 from __future__ import annotations
@@ -52,9 +54,11 @@ from app.services.inspection_manager import _rules_for_model
 from app.services.synthetic_media import render_part_image
 
 DEMO_USERS: dict[str, tuple[str, str]] = {
+    RoleNames.OWNER: ("owner", "Owner!Vision2026"),
     RoleNames.ADMIN: ("admin", "Admin!Vision2026"),
     RoleNames.OPERATOR: ("operator1", "Operator!2026"),
     RoleNames.AI_ENGINEER: ("aiengineer", "Engineer!2026"),
+    RoleNames.VIEWER: ("viewer", "Viewer!Vision2026"),
 }
 
 DETECTION_CLASSES = ["scratch", "dent", "crack", "contamination"]
@@ -88,9 +92,11 @@ def _sha256_fake(rng: random.Random) -> str:
 def _ensure_roles(db: Session) -> dict[str, Role]:
     roles: dict[str, Role] = {}
     descriptions = {
+        RoleNames.OWNER: "Organization owner role",
         RoleNames.ADMIN: "Administrator role",
         RoleNames.OPERATOR: "Operator role",
         RoleNames.AI_ENGINEER: "AI engineer role",
+        RoleNames.VIEWER: "Read-only viewer role",
     }
     for name in RoleNames.all():
         role = db.query(Role).filter(Role.name == name).first()
@@ -102,7 +108,7 @@ def _ensure_roles(db: Session) -> dict[str, Role]:
     return roles
 
 
-def _seed_users(db: Session, roles: dict[str, Role], rng: random.Random) -> list[User]:
+def _seed_users(db: Session, roles: dict[str, Role], rng: random.Random, org_id: int = 1) -> list[User]:
     created: list[User] = []
     for role_name, (username, password) in DEMO_USERS.items():
         if db.query(User).filter(User.username == username).first():
@@ -113,6 +119,7 @@ def _seed_users(db: Session, roles: dict[str, Role], rng: random.Random) -> list
             hashed_password="",
             role_id=roles[role_name].id,
             is_active=True,
+            org_id=org_id,
         )
         user.set_password(password)
         db.add(user)
@@ -364,7 +371,10 @@ def seed_demo_data(
     now = datetime.now(timezone.utc)
 
     roles = _ensure_roles(db)
-    _seed_users(db, roles, rng)
+    from app.services.tenant import get_or_create_default_org
+
+    org = get_or_create_default_org(db)
+    _seed_users(db, roles, rng, org_id=org.id)
     cameras = _seed_lines_and_cameras(db, rng)
     models = _seed_models(db, rng)
     db.flush()

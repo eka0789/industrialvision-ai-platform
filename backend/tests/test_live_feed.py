@@ -17,7 +17,7 @@ from app.db.base import Base
 from app.db.models import Camera, Inspection, ModelVersion, Role, User
 from app.services.evidence import EvidenceStorage
 from app.services.event_bus import EventBus
-from app.services.live_feed import LiveInspectionFeed, TOPIC_INSPECTIONS
+from app.services.live_feed import LiveInspectionFeed, inspection_topic
 
 
 class LiveFeedTests(unittest.TestCase):
@@ -106,7 +106,7 @@ class LiveFeedTests(unittest.TestCase):
 
     def test_run_publishes_to_event_bus(self):
         self._seed_station()
-        queue = self.bus.subscribe(TOPIC_INSPECTIONS)
+        queue = self.bus.subscribe(inspection_topic(1))
 
         async def scenario():
             self.feed.start()

@@ -218,3 +218,27 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   body mode returns tokens & sets no cookies & needs no CSRF; cookie mode e2e login → me → CSRF
   rejection without/with wrong header → pass with correct header → silent refresh via cookie with
   rotation → stale-token 401 → logout clears cookies; safe methods exempt). Full suite 286 OK.
+
+- [x] **A6 — Multi-tenancy.** `organizations` table added; `org_id` (NOT NULL, server_default 1,
+  indexed, FK to organizations) on ALL 13 tenant tables (users, production_lines, cameras,
+  model_versions, model_evaluations, inspection_sessions, inspections, detection_results,
+  anomaly_results, system_events, login_attempts, refresh_tokens, audit_logs). Migration
+  `a00000000005` (batch_alter_table for SQLite compatibility): create org table → bootstrap org id 1
+  → add nullable column per table → backfill to 1 → NOT NULL → index + server_default; downgrade
+  reverses. Verified upgrade→downgrade→base + re-upgrade via the existing migration test on SQLite;
+  PostgreSQL coverage is asserted by the CI integration job (H5 runs it). Org-scoped query layer
+  (`app/services/tenant.py`: `scoped_query`/`scoped_one`/`stamp_org` — foreign ids simply 404, no
+  existence leak). RBAC v2 roles: owner/admin/ai_engineer/operator/viewer (`app/core/constants.py`),
+  read endpoints accept viewer; writes owner/admin(/operator); admin endpoints owner+admin only,
+  only owners mint owner/admin. Routers scoped: cameras (CRUD/start/stop/sessions/inspect-video),
+  models (list/detail/patch/activate/deactivate/evaluations + per-org active-model rule + per-org
+  name uniqueness), inspections (list/detail/evidence + create stamps org), admin (org-scoped user
+  list/invite/status with audit logs `admin.user.created`, `admin.user.status_changed`). Live feed
+  + WS fan-out org-scoped: bus topics are now `inspections:org:<org_id>` (`inspection_topic`),
+  inspection payloads carry `org_id`. Seed: default org created, owner/viewer demo accounts added
+  (owner/Owner!Vision2026, viewer/Viewer!Vision2026), still production-refused. CLI bootstrap
+  stamps org 1.
+  Verified: `python -m unittest tests.test_multi_tenant` → 13 tests OK (org-scoped listings for
+  cameras/models/inspections/admin-users; cross-tenant GET/PUT/DELETE/start/stop/session/activate/
+  evidence/status all 404; org-stamped creation; cross-org model-name non-collision; owner-mint
+  403; audit-log assertion; org-scoped bus topics). Full suite **299 tests OK** (4 skips).

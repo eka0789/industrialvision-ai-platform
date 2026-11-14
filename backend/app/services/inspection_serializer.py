@@ -33,6 +33,7 @@ def serialize_inspection(inspection: Inspection) -> dict[str, Any]:
     return {
         "id": inspection.id,
         "timestamp": inspection.created_at,
+        "org_id": inspection.org_id,
         "camera_id": inspection.camera_id,
         "session_id": inspection.session_id,
         "product_id": inspection.product_id,

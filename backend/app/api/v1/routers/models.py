@@ -24,6 +24,7 @@ from app.schemas.model import (
     ModelVersionCreate,
     ModelVersionUpdate,
 )
+from app.services.tenant import scoped_one, scoped_query, stamp_org
 from app.services.model_registry import (
     ArtifactReferenceError,
     checksum_artifact,
@@ -32,7 +33,7 @@ from app.services.model_registry import (
 
 router = APIRouter(prefix="/models", tags=["models"])
 
-_WRITE_ROLES = (RoleNames.ADMIN, RoleNames.AI_ENGINEER)
+_WRITE_ROLES = (RoleNames.OWNER, RoleNames.ADMIN, RoleNames.AI_ENGINEER)
 
 
 def _serialize(model: ModelVersion) -> dict[str, Any]:
@@ -71,8 +72,8 @@ def _serialize_evaluation(row: ModelEvaluation) -> dict[str, Any]:
     }
 
 
-def _get_model(db: Session, model_id: int) -> ModelVersion:
-    model = db.get(ModelVersion, model_id)
+def _get_model(db: Session, model_id: int, user: User) -> ModelVersion:
+    model = scoped_one(db, ModelVersion, user, model_id)
     if model is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model version not found")
     return model
@@ -93,11 +94,12 @@ def _resolve(reference: str) -> str:
 
 
 def _apply_active(db: Session, model: ModelVersion, active: bool) -> None:
-    """Keep at most one active model per task type."""
+    """Keep at most one active model per task type within the organization."""
     if active:
         db.query(ModelVersion).filter(
             ModelVersion.is_active.is_(True),
             ModelVersion.task_type == model.task_type,
+            ModelVersion.org_id == model.org_id,
             ModelVersion.id != model.id,
         ).update({"is_active": False}, synchronize_session=False)
     model.is_active = active
@@ -118,7 +120,7 @@ def list_models(
     if framework is not None and framework not in SUPPORTED_FRAMEWORKS:
         raise HTTPException(status_code=422, detail=f"Unknown framework; expected one of {SUPPORTED_FRAMEWORKS}")
 
-    query = db.query(ModelVersion)
+    query = scoped_query(db, ModelVersion, _user)
     if active is not None:
         query = query.filter(ModelVersion.is_active.is_(active))
     if task_type is not None:
@@ -143,7 +145,7 @@ def create_model(
     db: Session = Depends(get_db),
     _user: User = Depends(require_roles(*_WRITE_ROLES)),
 ) -> dict[str, Any]:
-    if db.query(ModelVersion).filter(ModelVersion.name == payload.name).first():
+    if scoped_query(db, ModelVersion, _user).filter(ModelVersion.name == payload.name).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Model name already exists")
 
     checksum = _resolve(payload.source_path)
@@ -167,6 +169,7 @@ def create_model(
         provenance_json=payload.provenance,
         is_active=False,
     )
+    stamp_org(model, _user)
     db.add(model)
     db.flush()
     if payload.is_active:
@@ -182,7 +185,7 @@ def get_model(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    return _serialize(_get_model(db, model_id))
+    return _serialize(_get_model(db, model_id, _user))
 
 
 @router.patch("/{model_id}")
@@ -192,7 +195,7 @@ def update_model(
     db: Session = Depends(get_db),
     _user: User = Depends(require_roles(*_WRITE_ROLES)),
 ) -> dict[str, Any]:
-    model = _get_model(db, model_id)
+    model = _get_model(db, model_id, _user)
     fields = payload.model_dump(exclude_unset=True)
     if not fields:
         return _serialize(model)
@@ -237,7 +240,7 @@ def activate_model(
     db: Session = Depends(get_db),
     _user: User = Depends(require_roles(*_WRITE_ROLES)),
 ) -> dict[str, Any]:
-    model = _get_model(db, model_id)
+    model = _get_model(db, model_id, _user)
     _apply_active(db, model, True)
     db.commit()
     db.refresh(model)
@@ -250,7 +253,7 @@ def deactivate_model(
     db: Session = Depends(get_db),
     _user: User = Depends(require_roles(*_WRITE_ROLES)),
 ) -> dict[str, Any]:
-    model = _get_model(db, model_id)
+    model = _get_model(db, model_id, _user)
     _apply_active(db, model, False)
     db.commit()
     db.refresh(model)
@@ -263,7 +266,7 @@ def list_evaluations(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    model = _get_model(db, model_id)
+    model = _get_model(db, model_id, _user)
     rows = (
         db.query(ModelEvaluation)
         .filter(ModelEvaluation.model_version_id == model.id)
@@ -281,7 +284,7 @@ def create_evaluation(
     _user: User = Depends(require_roles(*_WRITE_ROLES)),
 ) -> dict[str, Any]:
     """Record metrics only for a completed run on an identified split (T21 gate)."""
-    model = _get_model(db, model_id)
+    model = _get_model(db, model_id, _user)
     metrics = dict(payload.metrics_json)
     metrics.update(
         {
@@ -298,6 +301,7 @@ def create_evaluation(
         input_size=payload.input_size,
         batch_size=payload.batch_size,
     )
+    stamp_org(row, _user)
     db.add(row)
     db.commit()
     db.refresh(row)

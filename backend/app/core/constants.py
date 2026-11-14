@@ -37,10 +37,23 @@ class ModelDevice(str):
 
 
 class Role(str):
+    # RBAC v2 (A6): owner/admin manage the organization; viewer is read-only.
+    OWNER = "owner"
     ADMIN = "admin"
-    OPERATOR = "operator"
     AI_ENGINEER = "ai_engineer"
+    OPERATOR = "operator"
+    VIEWER = "viewer"
 
     @classmethod
     def all(cls) -> list[str]:
-        return [cls.ADMIN, cls.OPERATOR, cls.AI_ENGINEER]
+        return [cls.OWNER, cls.ADMIN, cls.OPERATOR, cls.AI_ENGINEER, cls.VIEWER]
+
+    @classmethod
+    def write_roles(cls) -> list[str]:
+        """Roles allowed to create/modify operational content."""
+        return [cls.OWNER, cls.ADMIN, cls.OPERATOR, cls.AI_ENGINEER]
+
+    @classmethod
+    def admin_roles(cls) -> list[str]:
+        """Roles with organization-level administration rights."""
+        return [cls.OWNER, cls.ADMIN]

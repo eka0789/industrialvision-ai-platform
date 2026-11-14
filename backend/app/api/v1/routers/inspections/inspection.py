@@ -30,10 +30,11 @@ from app.db.session import get_db
 from app.schemas.inspection import InspectionOut, InspectionPage
 from app.services.decision import decide_inspection
 from app.services.evidence import EvidenceStorage
+from app.services.tenant import scoped_one, scoped_query, stamp_org
 from app.services.event_bus import event_bus
 from app.services.inspection_manager import _rules_for_model
 from app.services.inspection_serializer import serialize_inspection as _serialize_inspection
-from app.services.live_feed import InspectionOutDump, TOPIC_INSPECTIONS
+from app.services.live_feed import InspectionOutDump, inspection_topic
 from app.vision.contracts import InferenceResult
 from app.vision.factory import create_detection_engine
 
@@ -114,7 +115,7 @@ def _finish_error(
     from app.services.metrics import record_decision
 
     record_decision("ERROR")
-    event_bus.publish(TOPIC_INSPECTIONS, InspectionOutDump(inspection))
+    event_bus.publish(inspection_topic(inspection.org_id), InspectionOutDump(inspection))
     return InspectionOut.model_validate(_serialize_inspection(inspection))
 
 
@@ -126,21 +127,22 @@ async def inspect_image(
     product_id: Annotated[str | None, Form(max_length=200)] = None,
     batch_id: Annotated[str | None, Form(max_length=200)] = None,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER)),
+    _user: User = Depends(require_roles(Role.OWNER, Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER, Role.VIEWER)),
 ) -> InspectionOut:
     content = await file.read(settings.MAX_UPLOAD_BYTES + 1)
     if len(content) > settings.MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image exceeds upload limit")
     image, extension = _decode_uploaded_image(file, content)
 
-    camera = db.get(Camera, camera_id)
-    model = db.get(ModelVersion, model_version_id)
+    camera = scoped_one(db, Camera, _user, camera_id)
+    model = scoped_one(db, ModelVersion, _user, model_version_id)
     if camera is None or not camera.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active camera not found")
     if model is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model version not found")
 
     inspection_session = InspectionSession(camera_id=camera.id, model_version_id=model.id)
+    stamp_org(inspection_session, _user)
     db.add(inspection_session)
     db.flush()
     inspection = Inspection(
@@ -154,6 +156,7 @@ async def inspect_image(
         error_status="inference_not_started",
         error_message="Inspection has not completed",
     )
+    stamp_org(inspection, _user)
     db.add(inspection)
     db.commit()
     db.refresh(inspection)
@@ -184,23 +187,23 @@ async def inspect_image(
 
         for detection in result.detections:
             x1, y1, x2, y2 = detection.bbox
-            db.add(
-                DetectionResult(
-                    inspection_id=inspection.id,
-                    label=detection.label,
-                    confidence=detection.confidence,
-                    bbox_json={"x1": x1, "y1": y1, "x2": x2, "y2": y2},
-                    area=(x2 - x1) * (y2 - y1),
-                )
+            detection_row = DetectionResult(
+                inspection_id=inspection.id,
+                label=detection.label,
+                confidence=detection.confidence,
+                bbox_json={"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+                area=(x2 - x1) * (y2 - y1),
             )
+            stamp_org(detection_row, _user)
+            db.add(detection_row)
         if result.anomaly is not None:
-            db.add(
-                AnomalyResult(
-                    inspection_id=inspection.id,
-                    score=result.anomaly.score,
-                    threshold=(model.config_json or {}).get("anomaly_threshold"),
-                )
+            anomaly_row = AnomalyResult(
+                inspection_id=inspection.id,
+                score=result.anomaly.score,
+                threshold=(model.config_json or {}).get("anomaly_threshold"),
             )
+            stamp_org(anomaly_row, _user)
+            db.add(anomaly_row)
 
         inspection.detection_results_json = {"detections": detection_data}
         inspection.anomaly_score_json = (
@@ -226,7 +229,7 @@ async def inspect_image(
             latency_seconds=result.latency_ms / 1000.0 if result.latency_ms is not None else None,
             camera_id=camera_id,
         )
-        event_bus.publish(TOPIC_INSPECTIONS, InspectionOutDump(inspection))
+        event_bus.publish(inspection_topic(inspection.org_id), InspectionOutDump(inspection))
         return InspectionOut.model_validate(_serialize_inspection(inspection))
     except Exception as exc:
         db.rollback()
@@ -240,9 +243,9 @@ async def inspect_image(
 def get_inspection_evidence(
     inspection_id: int,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER)),
+    _user: User = Depends(require_roles(Role.OWNER, Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER, Role.VIEWER)),
 ) -> FileResponse:
-    inspection = db.get(Inspection, inspection_id)
+    inspection = scoped_one(db, Inspection, _user, inspection_id)
     if inspection is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
     if not inspection.evidence_path:
@@ -269,9 +272,9 @@ def list_inspections(
     camera_id: int | None = Query(default=None, gt=0),
     batch_id: str | None = Query(default=None, max_length=200),
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER)),
+    _user: User = Depends(require_roles(Role.OWNER, Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER, Role.VIEWER)),
 ) -> InspectionPage:
-    query = db.query(Inspection)
+    query = scoped_query(db, Inspection, _user)
     if decision is not None:
         query = query.filter(Inspection.decision == decision)
     if camera_id is not None:
@@ -300,10 +303,10 @@ def list_inspections(
 def get_inspection(
     inspection_id: int,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER)),
+    _user: User = Depends(require_roles(Role.OWNER, Role.ADMIN, Role.OPERATOR, Role.AI_ENGINEER, Role.VIEWER)),
 ) -> InspectionOut:
     inspection = (
-        db.query(Inspection)
+        scoped_query(db, Inspection, _user)
         .options(selectinload(Inspection.detections), selectinload(Inspection.anomaly))
         .filter(Inspection.id == inspection_id)
         .first()

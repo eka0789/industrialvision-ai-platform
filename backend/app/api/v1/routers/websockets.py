@@ -15,7 +15,7 @@ from app.db.session import get_db
 from app.db.models import Camera, User
 from app.services.camera import CameraStreamer
 from app.services.event_bus import event_bus
-from app.services.live_feed import TOPIC_INSPECTIONS
+from app.services.live_feed import inspection_topic
 from app.services.metrics import ws_closed, ws_opened
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
@@ -120,7 +120,7 @@ async def inspection_events(
 
     await websocket.accept(subprotocol=subprotocol)
     await websocket.send_json({"type": "connected", "timestamp": time.time()})
-    queue = event_bus.subscribe(TOPIC_INSPECTIONS)
+    queue = event_bus.subscribe(inspection_topic(user.org_id))
     ws_opened("inspections_live")
 
     try:
@@ -135,5 +135,5 @@ async def inspection_events(
     except Exception:
         pass
     finally:
-        event_bus.unsubscribe(TOPIC_INSPECTIONS, queue)
+        event_bus.unsubscribe(inspection_topic(user.org_id), queue)
         ws_closed("inspections_live")

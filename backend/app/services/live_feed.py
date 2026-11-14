@@ -30,6 +30,11 @@ from app.services.synthetic_media import render_part_image
 logger = logging.getLogger(__name__)
 
 TOPIC_INSPECTIONS = "inspections"
+
+
+def inspection_topic(org_id: int | None) -> str:
+    """Org-scoped event-bus topic so WebSocket fan-out never crosses tenants."""
+    return f"inspections:org:{org_id if org_id else 1}"
 PRODUCT_CODES = ("BRK-2041-A", "BRK-2041-B", "CVR-1180-C", "HSG-0904-A", "SFT-3310-D")
 
 
@@ -70,7 +75,7 @@ class LiveInspectionFeed:
         while True:
             payload = await asyncio.to_thread(self._generate_one)
             if payload is not None:
-                self._bus.publish(TOPIC_INSPECTIONS, payload)
+                self._bus.publish(inspection_topic(payload["inspection"].get("org_id")), payload)
             await asyncio.sleep(self._interval)
 
     # -- generation --------------------------------------------------------

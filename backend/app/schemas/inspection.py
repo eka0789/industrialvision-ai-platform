@@ -32,6 +32,7 @@ class InspectionOut(BaseModel):
 
     id: int
     timestamp: datetime
+    org_id: int
     camera_id: int
     session_id: int
     product_id: str | None = None

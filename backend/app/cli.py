@@ -29,7 +29,10 @@ def provision_initial_admin(db: Session, username: str, password: str) -> User:
         db.add(role)
         db.flush()
 
-    user = User(username=username, hashed_password="", role_id=role.id, is_active=True)
+    from app.services.tenant import get_or_create_default_org
+
+    org = get_or_create_default_org(db)
+    user = User(username=username, hashed_password="", role_id=role.id, is_active=True, org_id=org.id)
     user.set_password(password)
     db.add(user)
     db.commit()

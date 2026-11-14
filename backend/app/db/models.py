@@ -1,6 +1,7 @@
 """Database ORM models for IndustrialVision AI.
 
 Schema surfaces (core):
+- organizations (multi-tenancy root; every tenant table carries org_id)
 - roles, users
 - production_lines, cameras
 - model_versions, model_evaluations
@@ -24,6 +25,30 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class Organization(Base):
+    """Tenant root. Every tenant-scoped table carries ``org_id`` (A6).
+
+    Row id 1 is the bootstrap organization created by migration
+    ``a00000000005``; existing single-tenant installs land there.
+    """
+
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), default=now, nullable=False
+    )
+
+    users: Mapped[list["User"]] = relationship(back_populates="organization")
+
+    def __repr__(self) -> str:
+        return f"<Organization(id={self.id}, name={self.name})>"
+
+
 class Role(Base):
     __tablename__ = "roles"
 
@@ -41,6 +66,10 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     username: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -52,6 +81,7 @@ class User(Base):
     )
 
     role: Mapped["Role"] = relationship(back_populates="users")
+    organization: Mapped["Organization"] = relationship(back_populates="users")
     audits: Mapped[list["AuditLog"]] = relationship(back_populates="user", cascade="save-update")
     login_attempts: Mapped[list["LoginAttempt"]] = relationship(
         back_populates="user", cascade="save-update"
@@ -75,6 +105,10 @@ class ProductionLine(Base):
     __tablename__ = "production_lines"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
@@ -92,6 +126,10 @@ class Camera(Base):
     __tablename__ = "cameras"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     camera_identity: Mapped[str] = mapped_column(String(255), nullable=True)
     source_type: Mapped[str] = mapped_column(String(20), nullable=False)  # upload/local_file/webcam/rtsp/simulated
@@ -121,6 +159,10 @@ class ModelVersion(Base):
     __tablename__ = "model_versions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     name: Mapped[str] = mapped_column(String(200), unique=True, index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     framework: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -152,6 +194,10 @@ class ModelEvaluation(Base):
     __tablename__ = "model_evaluations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     model_version_id: Mapped[int] = mapped_column(ForeignKey("model_versions.id"), nullable=False, index=True)
     task_type: Mapped[str] = mapped_column(String(50), nullable=False)  # object_detection / anomaly / runtime
     metrics_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -171,6 +217,10 @@ class InspectionSession(Base):
     __tablename__ = "inspection_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     camera_id: Mapped[int] = mapped_column(ForeignKey("cameras.id"), nullable=False, index=True)
     model_version_id: Mapped[int] = mapped_column(ForeignKey("model_versions.id"), nullable=False, index=True)
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
@@ -193,6 +243,10 @@ class Inspection(Base):
     __tablename__ = "inspections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     session_id: Mapped[int] = mapped_column(ForeignKey("inspection_sessions.id"), nullable=False, index=True)
     camera_id: Mapped[int] = mapped_column(ForeignKey("cameras.id"), nullable=False, index=True)
     product_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -234,6 +288,10 @@ class DetectionResult(Base):
     __tablename__ = "detection_results"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     inspection_id: Mapped[int] = mapped_column(ForeignKey("inspections.id"), nullable=False, index=True)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -251,6 +309,10 @@ class AnomalyResult(Base):
     __tablename__ = "anomaly_results"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     inspection_id: Mapped[int] = mapped_column(
         ForeignKey("inspections.id"), nullable=False, index=True, unique=True
     )
@@ -268,6 +330,10 @@ class SystemEvent(Base):
     __tablename__ = "system_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     event_type: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
     level: Mapped[str] = mapped_column(String(20), default="info", nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -282,6 +348,10 @@ class LoginAttempt(Base):
     __tablename__ = "login_attempts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     username: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -299,6 +369,10 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
@@ -317,6 +391,10 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     details_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)

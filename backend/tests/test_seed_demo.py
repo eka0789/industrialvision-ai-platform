@@ -68,8 +68,8 @@ class SeedDemoDataTests(unittest.TestCase):
         db = self.factory()
         try:
             self.assertEqual(summary["inspections"], 40)
-            self.assertEqual(db.query(Role).count(), 3)
-            self.assertEqual(db.query(User).count(), 3)
+            self.assertEqual(db.query(Role).count(), 5)  # RBAC v2: owner/admin/operator/ai_engineer/viewer
+            self.assertEqual(db.query(User).count(), 5)  # owner/admin/operator/ai_engineer/viewer demo accounts
             self.assertEqual(db.query(ProductionLine).count(), 3)
             self.assertEqual(db.query(Camera).count(), 6)
             self.assertEqual(db.query(ModelVersion).count(), 4)
@@ -83,7 +83,13 @@ class SeedDemoDataTests(unittest.TestCase):
             users = {user.username: user.role.name for user in db.query(User).all()}
             self.assertEqual(
                 users,
-                {"admin": "admin", "operator1": "operator", "aiengineer": "ai_engineer"},
+                {
+            "owner": "owner",
+            "admin": "admin",
+            "operator1": "operator",
+            "aiengineer": "ai_engineer",
+            "viewer": "viewer",
+        },
             )
 
             decisions = {row.decision for row in db.query(Inspection).all()}
@@ -122,7 +128,7 @@ class SeedDemoDataTests(unittest.TestCase):
         self.seed(inspections=10)
         db = self.factory()
         try:
-            self.assertEqual(db.query(User).count(), 3)
+            self.assertEqual(db.query(User).count(), 5)  # owner/admin/operator/ai_engineer/viewer demo accounts
             self.assertEqual(db.query(ModelVersion).count(), 4)
             self.assertEqual(db.query(Camera).count(), 6)
             self.assertEqual(db.query(Inspection).count(), 20)
