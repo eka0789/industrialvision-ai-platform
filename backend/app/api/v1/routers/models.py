@@ -17,6 +17,13 @@ from app.api.v1.deps import get_current_user, require_roles
 from app.core.constants import Role as RoleNames
 from app.db.models import ModelEvaluation, ModelVersion, User
 from app.db.session import get_db
+from pydantic import BaseModel
+
+
+class StagePayload(BaseModel):
+    stage: str
+
+
 from app.schemas.model import (
     SUPPORTED_FRAMEWORKS,
     SUPPORTED_TASKS,
@@ -258,6 +265,106 @@ def deactivate_model(
     db.commit()
     db.refresh(model)
     return _serialize(model)
+
+
+STAGES = ("development", "staging", "production")
+STAGE_ORDER = {"development": 0, "staging": 1, "production": 2}
+
+
+def _serialize_stage(model: ModelVersion) -> dict[str, Any]:
+    data = _serialize(model)
+    data["stage"] = model.stage
+    data["previous_stage"] = model.previous_stage
+    return data
+
+
+def _evaluation_gate(db: Session, model: ModelVersion, target: str) -> None:
+    """Promotion gate: an evaluation bound to a completed run + identified split.
+
+    Production additionally requires a recorded evaluation row (existing T21
+    semantics: metrics exist only for completed runs on hashed splits).
+    """
+    evaluations = db.query(ModelEvaluation).filter(ModelEvaluation.model_version_id == model.id).all()
+    identified = [
+        row for row in evaluations
+        if isinstance(row.metrics_json, dict)
+        and row.metrics_json.get("status") == "completed"
+        and row.metrics_json.get("run_id")
+        and row.metrics_json.get("split")
+    ]
+    if target == "production" and not identified:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Promotion to production requires an evaluation record bound to a completed run and an identified (hashed) split",
+        )
+
+
+@router.post("/{model_id}/promote")
+def promote_model(
+    model_id: int,
+    payload: StagePayload,
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_roles(*_WRITE_ROLES)),
+) -> dict[str, Any]:
+    """Stage promotion with the existing evaluation gate and one-production rule."""
+    model = _get_model(db, model_id, _user)
+    target = payload.stage
+    if target not in STAGES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown stage; expected {STAGES}")
+    current = STAGE_ORDER.get(model.stage, 0)
+    if STAGE_ORDER[target] <= current and target != model.previous_stage:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Cannot move backwards from {model.stage} to {target} (use rollback)")
+    _evaluation_gate(db, model, target)
+    if target == "production":
+        # Max one production model per (org, task_type).
+        db.query(ModelVersion).filter(
+            ModelVersion.org_id == model.org_id,
+            ModelVersion.task_type == model.task_type,
+            ModelVersion.stage == "production",
+            ModelVersion.id != model.id,
+        ).update({"stage": "staging", "previous_stage": "production"}, synchronize_session=False)
+    model.previous_stage = model.stage
+    model.stage = target
+    db.commit()
+    db.refresh(model)
+    return _serialize_stage(model)
+
+
+@router.post("/{model_id}/rollback")
+def rollback_model(
+    model_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_roles(*_WRITE_ROLES)),
+) -> dict[str, Any]:
+    """Explicit rollback to the previous stage (no gate — it is a revert)."""
+    model = _get_model(db, model_id, _user)
+    if not model.previous_stage:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No previous stage recorded for this model")
+    if model.previous_stage == "production":
+        # Rolling back INTO production still honors the one-production rule.
+        db.query(ModelVersion).filter(
+            ModelVersion.org_id == model.org_id,
+            ModelVersion.task_type == model.task_type,
+            ModelVersion.stage == "production",
+            ModelVersion.id != model.id,
+        ).update({"stage": "staging", "previous_stage": "production"}, synchronize_session=False)
+    model.stage, model.previous_stage = model.previous_stage, model.stage
+    db.commit()
+    db.refresh(model)
+    return _serialize_stage(model)
+
+
+@router.get("/{model_id}/drift")
+def model_drift(
+    model_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """PSI drift vs training-time reference stats (explicit error when absent)."""
+    from app.services.drift import drift_report
+    from app.services.tenant import get_user_org_id
+
+    return drift_report(db, org_id=get_user_org_id(_user), model_id=model_id)
 
 
 @router.get("/{model_id}/evaluations")

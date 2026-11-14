@@ -13,7 +13,7 @@ try {
   await page.getByLabel('Password', { exact: true }).fill('isolated-ui-password-2026')
   await page.getByRole('button', { name: 'Masuk ke ruang kendali' }).click()
   await page.waitForURL(`${baseURL}/`)
-  for (const route of ['/', '/inspections', '/inspections/new', '/cameras', '/models', '/maintenance', '/knowledge', '/agent', '/admin']) {
+  for (const route of ['/', '/inspections', '/inspections/new', '/cameras', '/models', '/maintenance', '/knowledge', '/agent', '/monitoring', '/admin']) {
     await page.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' })
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
     report.push({ route, violations: results.violations.map(({ id, impact, description, nodes }) => ({ id, impact, description, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) })) })

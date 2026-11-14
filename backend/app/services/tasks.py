@@ -75,3 +75,36 @@ def run_pdm_prune() -> dict:
         return {"deleted": int(deleted), "cutoff": cutoff.isoformat()}
     finally:
         db.close()
+
+
+@register_task("pdm_drift_check")
+def run_drift_check(org_id: int = 1, model_id: int | None = None) -> dict:
+    """Scheduled PSI drift check; pushes the worst feature PSI to Prometheus.
+
+    Missing reference stats are an explicit per-model error recorded in the
+    result — never treated as zero drift.
+    """
+    from app.db.models import ModelVersion
+    from app.db.session import SessionLocal
+    from app.services.drift import drift_report
+    from app.services.metrics import MODEL_DRIFT_PSI
+
+    db = SessionLocal()
+    try:
+        query = db.query(ModelVersion).filter(ModelVersion.org_id == org_id)
+        if model_id:
+            query = query.filter(ModelVersion.id == model_id)
+        results = []
+        for model in query.all():
+            try:
+                report = drift_report(db, org_id=org_id, model_id=model.id)
+            except ValueError as exc:
+                results.append({"model_id": model.id, "error": str(exc)})
+                continue
+            results.append({"model_id": model.id, "overall_psi": report["overall_psi"], "drifted": report["drifted"]})
+            for feature, data in report["features"].items():
+                if isinstance(data, dict) and "psi" in data:
+                    MODEL_DRIFT_PSI.labels(model=model.name, feature=feature).set(data["psi"])
+        return {"org_id": org_id, "models": results}
+    finally:
+        db.close()

@@ -172,6 +172,11 @@ class ModelVersion(Base):
     config_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="unloaded", nullable=False)
+    # Stage lifecycle (E1): development → staging → production; rollback keeps
+    # the previous stage so reverts are explicit, not guessed.
+    stage: Mapped[str] = mapped_column(String(20), default="development", nullable=False, server_default="development")
+    previous_stage: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reference_stats_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # E2 training-time drift reference
     # Registry metadata (T20)
     task_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     artifact_id: Mapped[str | None] = mapped_column(String(200), nullable=True)

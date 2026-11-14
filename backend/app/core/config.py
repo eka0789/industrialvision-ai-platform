@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = Field(default=5, ge=1, le=20)
     OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    # Optional MLflow experiment tracking mirror (E3); local run dir stays the
+    # source of truth. Empty = disabled.
+    MLFLOW_TRACKING_URI: str = ""
     DEFAULT_ONNX_MODEL: str = "model.onnx"
     ONNX_DEVICE: Literal["cpu", "cuda"] = "cpu"
     CONF_THRESHOLD: float = Field(default=0.25, ge=0.0, le=1.0)

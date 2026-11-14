@@ -343,3 +343,29 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   Route + nav wired; e2e sweep includes `/agent`.
   Verified: `python -m unittest tests.test_agent` → 14 tests OK; migration `a00000000008`
   upgrade/downgrade OK. Full suite **349 tests OK** (4 skips). Frontend build + oxlint clean.
+
+## Phase E — MLOps & monitoring extension (port ForgeSight F, IV-grade)
+
+- [x] **E1 — Registry stage lifecycle.** `stage` (development/staging/production, default
+  development) + `previous_stage` on model_versions (migration `a00000000009`, verified
+  upgrade/downgrade). `POST /models/{id}/promote` enforces: no backwards moves (use rollback),
+  production promotion REQUIRES an evaluation record bound to a completed run + identified split
+  (the existing T21 gate — no eval, no production), and max one production model per (org,
+  task_type) — the displaced production model drops to staging with `previous_stage=production`.
+  `POST /models/{id}/rollback` reverts explicitly (also honoring the one-production rule).
+- [x] **E2 — Drift detection.** `app/services/drift.py`: training-time reference stats (per-feature
+  decile edges + proportions) computed by the PdM pipeline and stored on the registry row
+  (`reference_stats_json`); PSI per feature vs live readings; drift report at
+  `GET /models/{id}/drift`. **Missing reference stats → explicit ValueError, never PSI=0**
+  (test-enforced). Scheduled worker task `pdm_drift_check` pushes `iv_model_drift_psi{model,feature}`
+  to Prometheus (Grafana panel available).
+- [x] **E3 — MLflow optional adapter.** `app/training/mlflow_adapter.py`: when
+  `MLFLOW_TRACKING_URI` is set + `mlflow` importable, completed runs mirror params/metrics/
+  artifacts; failures are logged and swallowed — the local run directory remains the source of
+  truth (dual-write semantics documented; disabled when unset).
+- [x] **E4 — Monitoring page.** `MonitoringPage`: overall status, DB, event bus (mode + connected
+  + degraded note), worker (mode + dead-letter count), model registry stages with previous stage.
+  Honest labels throughout. Route + nav wired; e2e sweep includes `/monitoring`.
+  Verified: `python -m unittest tests.test_mlops` → 14 tests OK (PSI math on known fixtures,
+  missing-reference error, stable-vs-drifted comparison, promotion gate, one-production rule,
+  rollback, MLflow disable/failure paths). Full suite **363 tests OK**. Frontend build + lint clean.

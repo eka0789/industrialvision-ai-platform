@@ -77,6 +77,12 @@ TASKS_DEAD_LETTERED = Gauge(
     "Tasks that exhausted their retries",
     registry=registry,
 )
+MODEL_DRIFT_PSI = Gauge(
+    "iv_model_drift_psi",
+    "Latest PSI per (model, feature) from the scheduled drift check",
+    ["model", "feature"],
+    registry=registry,
+)
 DB_OK = Gauge(
     "iv_database_ok",
     "1 when the database connection check succeeds at scrape time",

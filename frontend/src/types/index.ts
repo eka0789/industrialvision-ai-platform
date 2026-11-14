@@ -26,6 +26,8 @@ export interface Health {
   version: string
   database: string
   camera_connections: number
+  event_bus?: { mode: string; connected: boolean; configured: boolean }
+  worker?: { mode: string; degraded: boolean; dead_letter_count: number }
 }
 
 export interface Camera {
@@ -54,6 +56,8 @@ export interface CameraInput {
 }
 
 export interface ModelVersion {
+  stage?: 'development' | 'staging' | 'production'
+  previous_stage?: string | null
   id: number
   name: string
   description: string | null

@@ -116,6 +116,8 @@ def train_failure_classifier(
     joblib.dump({"model": best, "features": FEATURES, "selected": best_name}, checkpoint_path)
     artifact_rel = _publish_artifact(checkpoint_path, f"pdm/{run_dir.name}/failure_classifier.joblib")
 
+    from app.services.drift import compute_reference_stats
+
     summary = {
         "task": "failure_classification",
         "dataset_kind": bundle.kind,
@@ -134,6 +136,7 @@ def train_failure_classifier(
         artifact_rel=artifact_rel,
         summary=summary,
         thresholds={"f1_gate": 0.6},
+        reference_stats=compute_reference_stats(X_train.tolist()),
     )
     return summary
 
@@ -246,6 +249,7 @@ def _register_pdm_model(
     artifact_rel: str,
     summary: dict[str, Any],
     thresholds: dict[str, float],
+    reference_stats: dict | None = None,
 ) -> None:
     """Register a trained PdM artifact in the existing model registry."""
     if db is None:
@@ -273,6 +277,7 @@ def _register_pdm_model(
             "test_metrics": summary.get("test_metrics"),
             "trained_by": "app.pdm.train",
         },
+        reference_stats_json=reference_stats,
         is_active=False,
         org_id=org_id,
     )
@@ -323,7 +328,18 @@ def main() -> int:
                      "test": summary["test_metrics"]},
         )
         run.log(json.dumps(summary, indent=2))
-        print(json.dumps({"run_id": run_id, "status": "completed", "summary": summary}, indent=2))
+        from app.training.mlflow_adapter import log_training_run
+
+        mirrored = log_training_run(
+            run_id=run_id,
+            task=args.task,
+            seed=args.seed,
+            config={"rows": args.rows},
+            metrics=run.manifest.get("metrics"),
+            status="completed",
+            artifact_paths=[str(Path(args.runs_dir) / run_id / "models" / Path(summary["artifact"]).name)],
+        )
+        print(json.dumps({"run_id": run_id, "status": "completed", "mlflow_mirrored": mirrored, "summary": summary}, indent=2))
         return 0
     except Exception as exc:
         run.fail(str(exc))
