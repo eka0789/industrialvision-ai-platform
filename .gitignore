@@ -38,6 +38,9 @@ data/runs/
 *.onnx
 *.engine
 *.plan
+*.joblib
+backend/models/
+models/
 
 # Frontend dependencies/build outputs
 node_modules/
