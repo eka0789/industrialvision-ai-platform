@@ -45,7 +45,7 @@ function simulate(seed: number, alpha: number, epsilon: number): SimResult {
 
   const stepEnv = (health: number, action: Action): { next: number; reward: number; broke: boolean } => {
     if (action === 'Overhaul') return { next: HEALTH - 1, reward: -COSTS[2], broke: false }
-    if (action === 'Inspeksi') return { next: health - (rand() < 0.55 ? 1 : 0), reward: -COSTS[1], broke: false }
+    if (action === 'Inspeksi') return { next: Math.max(0, health - (rand() < 0.55 ? 1 : 0)), reward: -COSTS[1], broke: false }
     // Wait: degrades; breakdown chance grows as health drops.
     const breakChance = [0.02, 0.05, 0.1, 0.2, 0.4, 0][health]
     if (rand() < breakChance) return { next: HEALTH - 1, reward: -BREAKDOWN_PENALTY, broke: true }

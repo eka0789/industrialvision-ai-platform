@@ -17,27 +17,100 @@
 
 ## Table of Contents
 
-1. [Core Features](#core-features)
-2. [System Architecture](#system-architecture)
-3. [Technology Stack](#technology-stack)
-4. [System Requirements](#system-requirements)
-5. [Application Startup Guide (Local Development)](#application-startup-guide-local-development)
+1. [Screenshots](#screenshots)
+2. [Core Features](#core-features)
+3. [System Architecture](#system-architecture)
+4. [Technology Stack](#technology-stack)
+5. [System Requirements](#system-requirements)
+6. [Application Startup Guide (Local Development)](#application-startup-guide-local-development)
    - [1. Clone & Install Dependencies](#1-clone--install-dependencies)
    - [2. Environment Configuration](#2-environment-configuration)
    - [3. Database Migration & Admin Bootstrap](#3-database-migration--admin-bootstrap)
    - [4. Running the Backend API](#4-running-the-backend-api)
    - [5. Running the Frontend Console](#5-running-the-frontend-console)
-6. [Operational Workflow](#operational-workflow)
-7. [Project Structure](#project-structure)
-8. [REST & WebSocket API Reference](#rest--websocket-api-reference)
-9. [Environment Variables](#environment-variables)
-10. [Testing & Quality Verification](#testing--quality-verification)
-11. [Docker Compose Deployment](#docker-compose-deployment)
+7. [Operational Workflow](#operational-workflow)
+8. [Project Structure](#project-structure)
+9. [REST & WebSocket API Reference](#rest--websocket-api-reference)
+10. [Environment Variables](#environment-variables)
+11. [Testing & Quality Verification](#testing--quality-verification)
+12. [Docker Compose Deployment](#docker-compose-deployment)
     - [Startup behaviour](#startup-behaviour)
     - [Backup & Restore](#backup--restore)
-12. [Troubleshooting](#troubleshooting)
-13. [Security & System Limitations](#security--system-limitations)
-14. [License & Contribution](#license--contribution)
+13. [Troubleshooting](#troubleshooting)
+14. [Security & System Limitations](#security--system-limitations)
+15. [License & Contribution](#license--contribution)
+
+---
+
+## Screenshots
+
+Captured from the running application with the bundled demo dataset
+(`python -m app.seed`). The console ships in Bahasa Indonesia; all API
+contracts are language-neutral.
+
+> To regenerate after UI changes: seed a dev database, run the backend on
+> `:8001` and `npm run dev` with `VITE_PROXY_TARGET=http://127.0.0.1:8001`,
+> then execute `node e2e/screenshots.mjs` from `frontend/`.
+
+### Operations overview
+
+Live quality index, station fleet status, and the real-time inspection feed
+delivered over WebSocket.
+
+![Operations overview with live feed](docs/screenshots/02-overview.png)
+
+### Inspection workflow
+
+| Quality inspection history | Inspection detail with evidence |
+|---|---|
+| ![Inspection history](docs/screenshots/04-history.png) | ![Inspection detail](docs/screenshots/05-inspection-detail.png) |
+
+Upload a product image on the **new inspection** page — decisions (`PASS`,
+`FAIL`, `REVIEW`, `ERROR`) always carry their rationale:
+
+| New inspection | Login (role-aware console) |
+|---|---|
+| ![New inspection](docs/screenshots/03-new-inspection.png) | ![Login](docs/screenshots/01-login.png) |
+
+### Stations & model registry
+
+| Camera / station fleet | Model registry with checksums & stages |
+|---|---|
+| ![Cameras](docs/screenshots/06-cameras.png) | ![Models](docs/screenshots/07-models.png) |
+
+### Predictive maintenance
+
+Machines with sensor-based health (AI4I 2020 schema), a fail-safe prediction
+modal (`model` / `rules-only-fallback` / `error` modes are shown honestly),
+and a human-approved maintenance queue:
+
+| Machine fleet & approval queue | Fail-safe prediction modal |
+|---|---|
+| ![Maintenance](docs/screenshots/08-maintenance.png) | ![Prediction modal](docs/screenshots/09-maintenance-prediction.png) |
+
+### Knowledge AI & Operations Agent
+
+Grounded answers cite their source chunks; the agent plans with bounded tools
+and asks for human approval before side effects:
+
+| Knowledge AI chat with citations | Operations Agent with tool logs |
+|---|---|
+| ![Knowledge AI](docs/screenshots/10-knowledge.png) | ![Operations Agent](docs/screenshots/11-agent.png) |
+
+### MLOps monitoring & ML laboratory
+
+Service health (bus/worker modes), model stages, and a browser-only RL
+simulator explicitly labeled as educational:
+
+| Monitoring | ML Lab |
+|---|---|
+| ![Monitoring](docs/screenshots/12-monitoring.png) | ![ML Lab](docs/screenshots/13-lab.png) |
+
+### Administration & responsiveness
+
+| User administration | Responsive at 390 px |
+|---|---|
+| ![Admin](docs/screenshots/14-admin.png) | ![Mobile overview](docs/screenshots/15-mobile-overview.png) |
 
 ---
 
