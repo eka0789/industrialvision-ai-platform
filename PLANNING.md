@@ -242,3 +242,43 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   cameras/models/inspections/admin-users; cross-tenant GET/PUT/DELETE/start/stop/session/activate/
   evidence/status all 404; org-stamped creation; cross-org model-name non-collision; owner-mint
   403; audit-log assertion; org-scoped bus topics). Full suite **299 tests OK** (4 skips).
+
+## Phase B — Predictive Maintenance (port ForgeSight C, IV-grade)
+
+- [x] **B1 — Data model.** `machines` (org-scoped, unique code per org, optional camera/station
+  link, status), `sensor_readings` (AI4I 2020 feature schema: air/process temperature, rotational
+  speed, torque, tool wear; index on (machine_id, recorded_at); retention via
+  `PDM_SENSOR_RETENTION_DAYS`), `maintenance_requests` (approval workflow: pending →
+  approved/rejected → completed/cancelled; `decided_by_user_id` persisted), `maintenance_schedules`
+  (interval-based preventive plans). All org-scoped with the standard org_id pattern. Migration
+  `a00000000006` verified upgrade→downgrade→re-upgrade on SQLite (test_migrations).
+- [x] **B2 — Synthetic dataset (AI4I 2020 schema mirror).** `app/pdm/dataset.py` generates a
+  documented mirror (thresholds from the AI4I generative story: TWF 200–240 min, HDF ΔT<8.6 K ∧
+  rpm<1380, PWF power ∉ [3500,5000] W, OSF grade thresholds, RNF 0.1%) with deterministic seed;
+  auto-uses a real AI4I-format CSV at `PDM_DATASET_CSV` when present (schema mismatch = hard
+  error); writes stratified train/val/test split + hashed manifest. CLI: `python -m app.pdm.dataset`.
+  Honest labeling everywhere: `synthetic-mirror`, never claimed as real fleet data.
+- [x] **B3 — Training pipeline reusing the existing lifecycle.** `app/pdm/train.py`:
+  failure classifier compares 3 candidates (logistic regression / random forest / gradient
+  boosting) selected on VALIDATION F1, metrics reported ONLY from the held-out test split; RUL
+  regressor compares 3 candidates on validation MAE over documented synthetic degradation
+  trajectories. Checkpoints live inside the run dir (lifecycle gate satisfied), then published to
+  MODEL_ROOT and registered in the existing model registry (task types `failure_classification`,
+  `rul_regression`) with server-computed SHA-256 + provenance. `python -m app.pdm.train` produces a
+  `completed` run manifest with metrics (verified by subprocess test); failures mark the run failed
+  with no metrics (existing gate).
+- [x] **B4 — Inference service.** `app/pdm/inference.py`: loads the org's active registry artifact
+  via the verified-checksum path; missing artifact → explicit `rules-only-fallback` mode with the
+  documented thresholds; corrupt/replaced artifact or non-finite features → `error` mode (never a
+  silent fallback, never garbage); health = 1 − failure_probability (model) or trip-count (rules),
+  documented in the module docstring and surfaced in the UI.
+- [x] **B5 — API.** `/pdm/machines` CRUD + `/readings` + `/predict` + `/requests` CRUD with
+  approval gating (viewer read-only; operator/engineer write; owner/admin approve; self-approval
+  forbidden; completion requires approval; cross-tenant = 404) + `/schedules`. All org-scoped,
+  audit-logged (`pdm.*` actions), OpenAPI auto-updated. RBAC matrix + org-isolation tests.
+- [x] **B6 — Frontend.** `MaintenancePage` (machine cards with prediction modal showing
+  health/probability/RUL/mode labels — the `rules-only-fallback` and `error` modes are surfaced
+  honestly; maintenance request queue with approve/reject gated to owner/admin; register-machine
+  modal for write roles), nav entry "Perawatan prediktif", responsive styles. E2E spec now includes
+  `/maintenance` in the axe/390px sweep. `npm run build` + `tsc -b` clean; oxlint 0 errors.
+  Verified: `python -m unittest tests.test_pdm tests.test_pdm_api` → 22 tests OK.

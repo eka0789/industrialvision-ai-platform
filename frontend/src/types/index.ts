@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'operator' | 'ai_engineer'
+export type Role = 'owner' | 'admin' | 'operator' | 'ai_engineer' | 'viewer'
 export type Decision = 'PASS' | 'FAIL' | 'REVIEW' | 'ERROR'
 
 export interface User {
@@ -141,4 +141,46 @@ export interface Evaluation {
   input_size: string | null
   batch_size: number | null
   measured_at: string | null
+}
+
+// ── Predictive Maintenance (Phase B) ────────────────────────────────────────
+
+export type MachineStatus = 'running' | 'idle' | 'fault' | 'maintenance'
+
+export interface Machine {
+  id: number
+  org_id: number
+  name: string
+  code: string
+  machine_type: string
+  camera_id: number | null
+  status: MachineStatus
+  created_at: string
+}
+
+export interface PdmPrediction {
+  machine_id: number
+  mode: 'model' | 'rules-only-fallback' | 'error'
+  model_selected?: string | null
+  note?: string | null
+  error?: string | null
+  failure_probability: number | null
+  rul_minutes: number | null
+  health: number | null
+  failure_modes: string[]
+  recommendation: string
+  reading_id?: number | null
+}
+
+export interface MaintenanceRequest {
+  id: number
+  machine_id: number
+  title: string
+  description: string | null
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
+  requested_by_user_id: number
+  decided_by_user_id: number | null
+  decision_note: string | null
+  created_at: string
 }

@@ -406,3 +406,150 @@ class AuditLog(Base):
     def __repr__(self) -> str:
         return f"<AuditLog(id={self.id}, action={self.action}, user={self.user_id})>"
 
+
+
+# ---------------------------------------------------------------------------
+# Predictive Maintenance (Phase B) — org-scoped like every tenant table.
+# ---------------------------------------------------------------------------
+
+
+class Machine(Base):
+    """A physical machine linked to an inspection station (camera)."""
+
+    __tablename__ = "machines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    name: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(80), nullable=False, index=True)  # unique per org
+    machine_type: Mapped[str] = mapped_column(String(60), nullable=False, default="generic")
+    camera_id: Mapped[int | None] = mapped_column(ForeignKey("cameras.id"), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="running", nullable=False)
+    installed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), default=now, nullable=False
+    )
+
+    readings: Mapped[list["SensorReading"]] = relationship(back_populates="machine", cascade="save-update")
+    maintenance_requests: Mapped[list["MaintenanceRequest"]] = relationship(
+        back_populates="machine", cascade="save-update"
+    )
+
+    __table_args__ = (
+        Index("uq_machines_org_code", "org_id", "code", unique=True),
+        Index("ix_machines_org_status", "org_id", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Machine(id={self.id}, code={self.code}, status={self.status})>"
+
+
+class SensorReading(Base):
+    """Time-series sensor sample (AI4I 2020 feature schema).
+
+    Retention: rows older than PDM_SENSOR_RETENTION_DAYS are pruned by the
+    `pdm_prune_sensor_readings` background task.
+    """
+
+    __tablename__ = "sensor_readings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"), nullable=False, index=True)
+    air_temperature_k: Mapped[float] = mapped_column(Float, nullable=False)
+    process_temperature_k: Mapped[float] = mapped_column(Float, nullable=False)
+    rotational_speed_rpm: Mapped[float] = mapped_column(Float, nullable=False)
+    torque_nm: Mapped[float] = mapped_column(Float, nullable=False)
+    tool_wear_min: Mapped[float] = mapped_column(Float, nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+
+    machine: Mapped["Machine"] = relationship(back_populates="readings")
+
+    __table_args__ = (
+        Index("ix_sensor_readings_machine_time", "machine_id", "recorded_at"),
+    )
+
+    def features(self) -> list[float]:
+        """Feature vector in the documented, fixed order (shared with training)."""
+        return [
+            float(self.air_temperature_k),
+            float(self.process_temperature_k),
+            float(self.rotational_speed_rpm),
+            float(self.torque_nm),
+            float(self.tool_wear_min),
+        ]
+
+
+FEATURE_NAMES = [
+    "air_temperature_k",
+    "process_temperature_k",
+    "rotational_speed_rpm",
+    "torque_nm",
+    "tool_wear_min",
+]
+
+
+class MaintenanceRequest(Base):
+    """Human-in-the-loop maintenance work item with an approval gate.
+
+    Lifecycle: pending -> approved|rejected -> completed|cancelled.
+    ``decided_by_user_id`` is always the identity that approved/rejected.
+    """
+
+    __tablename__ = "maintenance_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"), nullable=False, index=True)
+    requested_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    priority: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    decided_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), default=now, nullable=False
+    )
+
+    machine: Mapped["Machine"] = relationship(back_populates="maintenance_requests")
+
+    __table_args__ = (
+        Index("ix_maintenance_requests_org_status", "org_id", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<MaintenanceRequest(id={self.id}, machine={self.machine_id}, status={self.status})>"
+
+
+class MaintenanceSchedule(Base):
+    """Recurring preventive-maintenance plan per machine."""
+
+    __tablename__ = "maintenance_schedules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    interval_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), default=now, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<MaintenanceSchedule(id={self.id}, machine={self.machine_id})>"

@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SECURE: bool | None = None
 
     MODEL_ROOT: str = "models"
+
+    # Predictive maintenance (Phase B): path to an optional real AI4I-format
+    # CSV; when absent the documented synthetic mirror is used. Sensor history
+    # older than the retention window is pruned by a background task.
+    PDM_DATASET_CSV: str = "data/pdm/ai4i2020.csv"
+    PDM_SENSOR_RETENTION_DAYS: int = Field(default=180, ge=1, le=3650)
     DEFAULT_ONNX_MODEL: str = "model.onnx"
     ONNX_DEVICE: Literal["cpu", "cuda"] = "cpu"
     CONF_THRESHOLD: float = Field(default=0.25, ge=0.0, le=1.0)

@@ -1,6 +1,9 @@
 import { api } from './client'
 import type {
   Camera,
+  Machine,
+  MaintenanceRequest,
+  PdmPrediction,
   CameraInput,
   Evaluation,
   Health,
@@ -66,4 +69,22 @@ export const modelApi = {
 export const adminApi = {
   createUser: async (payload: { username: string; email?: string; password: string; role: Role }) =>
     (await api.post<User>('/admin/users', payload)).data,
+}
+
+export const pdmApi = {
+  machines: async () => (await api.get<Machine[]>('/pdm/machines')).data,
+  createMachine: async (payload: { name: string; code: string; machine_type?: string }) =>
+    (await api.post<Machine>('/pdm/machines', payload)).data,
+  addReading: async (machineId: number, payload: Record<string, number>) =>
+    (await api.post(`/pdm/machines/${machineId}/readings`, payload)).data,
+  predict: async (machineId: number) =>
+    (await api.post<PdmPrediction>(`/pdm/machines/${machineId}/predict`, {}, { timeout: 60_000 })).data,
+  requests: async (status?: string) =>
+    (await api.get<MaintenanceRequest[]>('/pdm/requests', { params: status ? { status } : {} })).data,
+  createRequest: async (payload: { machine_id: number; title: string; priority: string; description?: string }) =>
+    (await api.post<MaintenanceRequest>('/pdm/requests', payload)).data,
+  approveRequest: async (id: number, note?: string) =>
+    (await api.post<MaintenanceRequest>(`/pdm/requests/${id}/approve`, { note })).data,
+  rejectRequest: async (id: number, note?: string) =>
+    (await api.post<MaintenanceRequest>(`/pdm/requests/${id}/reject`, { note })).data,
 }

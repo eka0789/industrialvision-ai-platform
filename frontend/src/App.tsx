@@ -15,6 +15,7 @@ const InspectionDetailPage = lazy(() => import('./pages/InspectionDetailPage'))
 const CamerasPage = lazy(() => import('./pages/CamerasPage'))
 const ModelsPage = lazy(() => import('./pages/ModelsPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const MaintenancePage = lazy(() => import('./pages/MaintenancePage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 function RouteFallback() {
@@ -38,6 +39,7 @@ export default function App() {
                   <Route path="/inspections/:id" element={<InspectionDetailPage />} />
                   <Route path="/cameras" element={<CamerasPage />} />
                   <Route path="/models" element={<ModelsPage />} />
+                  <Route path="/maintenance" element={<MaintenancePage />} />
                   <Route element={<RequireRole roles={['admin']} />}>
                     <Route path="/admin" element={<AdminPage />} />
                   </Route>
