@@ -18,7 +18,11 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pure-bash dirname (works even when PATH is stripped — tests do exactly
+# that to prove the missing-pg-tools failure path).
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+[[ "$SCRIPT_SOURCE" == */* ]] || SCRIPT_SOURCE="./$SCRIPT_SOURCE"
+SCRIPT_DIR="$(cd "${SCRIPT_SOURCE%/*}" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEFAULT_OUTPUT="${ROOT_DIR}/backups"
 MANIFEST_SCHEMA_VERSION="2"

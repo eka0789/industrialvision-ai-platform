@@ -13,7 +13,10 @@ from app.db.session import database_connect_args
 
 class SettingsTests(unittest.TestCase):
     def make_settings(self, **overrides):
-        return Settings(_env_file=None, **overrides)
+        # Defaults must come from the class, never from ambient environment
+        # variables (the CI PostgreSQL job exports production DATABASE_URL etc.).
+        with patch.dict(os.environ, {}, clear=True):
+            return Settings(_env_file=None, **overrides)
 
     def test_legacy_import_points_to_canonical_settings(self):
         self.assertIs(compatibility_settings, settings)
