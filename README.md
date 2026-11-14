@@ -38,7 +38,8 @@
     - [Backup & Restore](#backup--restore)
 13. [Troubleshooting](#troubleshooting)
 14. [Security & System Limitations](#security--system-limitations)
-15. [License & Contribution](#license--contribution)
+15. [User Guide (Panduan Lengkap)](#user-guide-panduan-lengkap)
+16. [License & Contribution](#license--contribution)
 
 ---
 
@@ -609,7 +610,7 @@ SVG bounding boxes are calculated using the image's natural dimensions and then 
 
 ### Verified by test
 
-376 backend tests (unittest) cover the vision core plus the PdM/RAG/agent/MLOps/lab modules,
+377 backend tests (unittest) cover the vision core plus the PdM/RAG/agent/MLOps/lab modules,
 multi-tenancy isolation, worker/queue behavior (RQ via fakeredis), the Redis event bus (fake
 transport), cookie/CSRF mode matrix, and checksum-verified backups. The frontend typecheck/build
 and the axe/390px sweep run over all routes, including a PostgreSQL 18 CI job that applies every
@@ -637,3 +638,17 @@ the authoring workstation (see PLANNING.md Phase H for the recorded smoke output
 This project is licensed under the terms of an internal / proprietary license. All code contributions must comply with quality review standards, pass the full unit-test suite, and maintain traceability for production safety and operational reliability.
 
 ---
+
+---
+
+## User Guide (Panduan Lengkap)
+
+Panduan penggunaan lengkap dalam Bahasa Indonesia — termasuk akun demo untuk
+stack Docker yang berjalan, tur setiap halaman, alur end-to-end 5 menit, demo
+data lengkap mode pengembangan, dan troubleshooting cepat:
+
+**[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**
+
+Akun demo stack produksi lokal: `smokeadmin / SmokeAdmin!2026` (admin) ·
+`smokeowner / SmokeOwner!2026` (owner) · `ui_operator / isolated-ui-password-2026`
+(operator) — aplikasi: **https://localhost:8443**
