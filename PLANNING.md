@@ -316,3 +316,30 @@ fail-safe always, security bar never drops, tenant isolation sacred, small verif
   Route + nav wired; e2e axe sweep includes `/knowledge`.
   Verified: `python -m unittest tests.test_rag tests.test_rag_api` → 24 tests OK. Full suite **335
   tests OK** (4 skips). Frontend `tsc -b && vite build` clean, oxlint 0 errors.
+
+## Phase D — AI Operations Agent (port ForgeSight E, IV-grade)
+
+- [x] **D1 — Tool registry.** `app/agent/tools.py`: 8 Pydantic-validated tools — kb_search,
+  machine_status, latest_inspections, predict_failure (delegates to the fail-safe PdM service),
+  analyze_defect, production_analytics (with the <30-sample honesty note), generate_incident_report,
+  create_maintenance_request. RBAC checked at EXECUTION time (`ToolRefusal`); every query carries
+  the org predicate; invalid args → structured errors.
+- [x] **D2 — State graph.** `app/agent/graph.py`: intent → plan → tool loop → validate → respond.
+  Iteration cap (5) enforced in code; per-tool timeout (20 s) via worker-thread + asyncio.wait_for;
+  retry-once with partial-result rollback; every attempt logged to `agent_tool_logs` with
+  durations; LLM planner when OPENAI_API_KEY exists, deterministic rule-based planner + extractive
+  composition otherwise (labeled `mock-demo`); unknown tools / failures are recorded, never fatal;
+  progress publishes to `agent:org:<id>` on the bus. Fail-safe run status (failed runs keep the
+  error, never a fabricated response).
+- [x] **D3 — Human-in-the-loop.** `agent_approvals` persisted (pending → approved/rejected/expired →
+  executed/failed), 60-minute TTL, expiry checked before status, self-approval forbidden, execution
+  runs the DIRECT effect (separated `APPROVAL_EXECUTORS` registry so approving cannot re-mint the
+  gated tool — loop-proof) **with the approver's identity** as the requester of record; audit logs
+  `agent.approval.approved/rejected`.
+- [x] **D4 — API + frontend.** `/agent/chat`, `/agent/runs[/{id}]` (org-scoped history + tool
+  logs), `/agent/approvals[...approve|reject]` (owner/admin), `/agent/tools` (RBAC table for the
+  UI); cross-tenant isolation tested. `AgentPage`: chat with provider/duration labels + tool-log
+  details, approval inbox with approve&execute/reject for owner/admin, run history with statuses.
+  Route + nav wired; e2e sweep includes `/agent`.
+  Verified: `python -m unittest tests.test_agent` → 14 tests OK; migration `a00000000008`
+  upgrade/downgrade OK. Full suite **349 tests OK** (4 skips). Frontend build + oxlint clean.

@@ -222,3 +222,39 @@ export interface RagChunk {
   content: string
   sha256: string
 }
+
+// ── AI Operations Agent (Phase D) ───────────────────────────────────────────
+
+export interface AgentToolLog {
+  tool: string
+  status: string
+  duration_ms: number
+  error: string | null
+  args?: Record<string, unknown> | null
+}
+
+export interface AgentRun {
+  id: number
+  question: string
+  status: string
+  provider: string
+  response: string | null
+  error: string | null
+  duration_ms: number | null
+  created_at: string
+  tool_logs?: AgentToolLog[]
+  plan?: { tool: string; args: Record<string, unknown> }[] | null
+}
+
+export interface AgentApproval {
+  id: number
+  tool_name: string
+  args: Record<string, unknown> | null
+  status: string
+  requested_by_user_id: number
+  decided_by_user_id: number | null
+  decision_note: string | null
+  expires_at: string
+  result: Record<string, unknown> | null
+  created_at: string
+}

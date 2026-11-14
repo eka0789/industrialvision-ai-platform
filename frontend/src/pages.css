@@ -176,3 +176,15 @@
 
 .chunk-index { font-family: var(--mono, monospace); font-size: 11px; text-transform: uppercase; color: var(--muted, #666); }
 .chunk-item p { margin-top: 6px; font-size: 14px; white-space: pre-wrap; }
+
+/* ── Agent page (Phase D) ───────────────────────────────────────────────── */
+
+.agent-chat, .approval-section, .run-history { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+.agent-chat h2, .approval-section h2, .run-history h2 { display: flex; gap: 8px; align-items: center; font-size: 20px; }
+
+.tool-log { font-size: 13px; }
+.tool-log summary { cursor: pointer; color: var(--muted, #666); }
+.tool-log ul { list-style: none; padding: 8px 0 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.tool-log li { display: flex; gap: 10px; align-items: center; }
+.tool-name { font-family: var(--mono, monospace); }
+.tool-duration { color: var(--muted, #666); }

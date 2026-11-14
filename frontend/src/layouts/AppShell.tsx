@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BookOpen, Boxes, ChevronRight, CircleGauge, Cctv, History, LogOut, Menu, Plus, Users, Wrench, X } from 'lucide-react'
+import { BookOpen, Bot, Boxes, ChevronRight, CircleGauge, Cctv, History, LogOut, Menu, Plus, Users, Wrench, X } from 'lucide-react'
 import { systemApi } from '../api'
 import { Brand } from '../components/Brand'
 import { useApi } from '../hooks/useApi'
@@ -16,6 +16,7 @@ const navigation = [
   { to: '/models', label: 'Registry model', index: '05', icon: Boxes },
   { to: '/maintenance', label: 'Perawatan prediktif', index: '06', icon: Wrench },
   { to: '/knowledge', label: 'Knowledge AI', index: '07', icon: BookOpen },
+  { to: '/agent', label: 'Operations Agent', index: '08', icon: Bot },
 ]
 
 export default function AppShell() {
@@ -32,7 +33,7 @@ export default function AppShell() {
     : liveStatus === 'connecting'
       ? 'Menyambung feed…'
       : 'Feed langsung nonaktif'
-  const items = user?.role === 'admin' ? [...navigation, { to: '/admin', label: 'Akses pengguna', index: '08', icon: Users }] : navigation
+  const items = user?.role === 'admin' ? [...navigation, { to: '/admin', label: 'Akses pengguna', index: '09', icon: Users }] : navigation
 
   const closeMenu = () => setMenuOpen(false)
 

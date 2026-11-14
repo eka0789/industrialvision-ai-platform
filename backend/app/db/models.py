@@ -623,3 +623,85 @@ class RagChunk(Base):
 
     def __repr__(self) -> str:
         return f"<RagChunk(id={self.id}, document={self.document_id}, ordinal={self.ordinal})>"
+
+
+# ---------------------------------------------------------------------------
+# AI Operations Agent (Phase D) — org-scoped.
+# ---------------------------------------------------------------------------
+
+
+class AgentRun(Base):
+    """One agent conversation turn: question → plan → tool logs → response."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="running", nullable=False, index=True)
+    plan_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider: Mapped[str] = mapped_column(String(40), default="mock-demo", nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+
+    tool_logs: Mapped[list["AgentToolLog"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<AgentRun(id={self.id}, status={self.status})>"
+
+
+class AgentToolLog(Base):
+    """Structured execution log for one tool invocation inside a run."""
+
+    __tablename__ = "agent_tool_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), nullable=False, index=True)
+    tool_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    args_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="ok", nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+
+    run: Mapped["AgentRun"] = relationship(back_populates="tool_logs")
+
+    def __repr__(self) -> str:
+        return f"<AgentToolLog(id={self.id}, tool={self.tool_name}, status={self.status})>"
+
+
+class AgentApproval(Base):
+    """Human-in-the-loop approval for side-effecting agent tools (D3).
+
+    Lifecycle: pending → approved|rejected|expired → executed|failed.
+    ``decided_by_user_id`` is the approving human; the tool then EXECUTES with
+    that identity — the requester can never self-approve (enforced in the API
+    layer and asserted in tests).
+    """
+
+    __tablename__ = "agent_approvals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True, server_default="1"
+    )
+    tool_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    args_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    requested_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    decided_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    result_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<AgentApproval(id={self.id}, tool={self.tool_name}, status={self.status})>"

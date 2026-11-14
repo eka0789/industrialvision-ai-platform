@@ -2,6 +2,8 @@ import { api } from './client'
 import type {
   Camera,
   Machine,
+  AgentApproval,
+  AgentRun,
   RagChatResponse,
   RagChunk,
   RagDocument,
@@ -103,4 +105,17 @@ export const ragApi = {
   chunks: async (id: number) => (await api.get<RagChunk[]>(`/rag/documents/${id}/chunks`)).data,
   chat: async (question: string) =>
     (await api.post<RagChatResponse>('/rag/chat', { question }, { timeout: 120_000 })).data,
+}
+
+export const agentApi = {
+  chat: async (question: string) =>
+    (await api.post<AgentRun>('/agent/chat', { question }, { timeout: 120_000 })).data,
+  runs: async () => (await api.get<AgentRun[]>('/agent/runs')).data,
+  run: async (id: number) => (await api.get<AgentRun>(`/agent/runs/${id}`)).data,
+  approvals: async (status?: string) =>
+    (await api.get<AgentApproval[]>('/agent/approvals', { params: status ? { status } : {} })).data,
+  approve: async (id: number, note?: string) =>
+    (await api.post<AgentApproval>(`/agent/approvals/${id}/approve`, { note })).data,
+  reject: async (id: number, note?: string) =>
+    (await api.post<AgentApproval>(`/agent/approvals/${id}/reject`, { note })).data,
 }

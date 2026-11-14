@@ -17,6 +17,7 @@ const ModelsPage = lazy(() => import('./pages/ModelsPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const MaintenancePage = lazy(() => import('./pages/MaintenancePage'))
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage'))
+const AgentPage = lazy(() => import('./pages/AgentPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 function RouteFallback() {
@@ -42,6 +43,7 @@ export default function App() {
                   <Route path="/models" element={<ModelsPage />} />
                   <Route path="/maintenance" element={<MaintenancePage />} />
                   <Route path="/knowledge" element={<KnowledgePage />} />
+                  <Route path="/agent" element={<AgentPage />} />
                   <Route element={<RequireRole roles={['admin']} />}>
                     <Route path="/admin" element={<AdminPage />} />
                   </Route>
