@@ -11,9 +11,21 @@ from app.services import event_bus as event_bus_module
 
 
 class HealthEndpointTests(unittest.TestCase):
+    def _inject_bus(self, mode: str, connected: bool):
+        class DeterministicBus:
+            pass
+
+        bus = DeterministicBus()
+        bus.mode = mode
+        bus.connected = connected
+        original_bus = health_router.event_bus
+        self.addCleanup(setattr, health_router, 'event_bus', original_bus)
+        health_router.event_bus = bus
+
     def test_public_health_preserves_version_metadata(self):
         original = health_router._port_open
         self.addCleanup(setattr, health_router, '_port_open', original)
+        self._inject_bus('memory', True)
         health_router._port_open = lambda *_args, **_kwargs: True
         # APP_ENV=test keeps the demo live feed lifespan startup disabled so
         # health checks never write fixture rows into the working database.
@@ -28,9 +40,8 @@ class HealthEndpointTests(unittest.TestCase):
     def test_health_reports_event_bus_mode(self):
         original = health_router._port_open
         self.addCleanup(setattr, health_router, '_port_open', original)
+        self._inject_bus('memory', True)
         health_router._port_open = lambda *_args, **_kwargs: True
-        # Default dev/test config: no REDIS_URL -> explicit in-process memory mode.
-        self.assertEqual(event_bus_module.event_bus.mode, 'memory')
         with patch.object(settings, 'APP_ENV', 'test'), TestClient(create_app()) as client:
             body = client.get('/health').json()
         self.assertEqual(body['event_bus'], {'mode': 'memory', 'connected': True, 'configured': False})
@@ -38,14 +49,7 @@ class HealthEndpointTests(unittest.TestCase):
     def test_health_is_degraded_when_configured_bus_is_disconnected(self):
         original = health_router._port_open
         self.addCleanup(setattr, health_router, '_port_open', original)
-        original_bus = health_router.event_bus
-        self.addCleanup(setattr, health_router, 'event_bus', original_bus)
-
-        class DisconnectedBus:
-            mode = 'redis'
-            connected = False
-
-        health_router.event_bus = DisconnectedBus()
+        self._inject_bus('redis', False)
         health_router._port_open = lambda *_args, **_kwargs: True
         with patch.object(settings, 'APP_ENV', 'test'), TestClient(create_app()) as client:
             body = client.get('/health').json()

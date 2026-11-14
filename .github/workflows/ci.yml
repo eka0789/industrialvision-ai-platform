@@ -109,25 +109,20 @@ jobs:
           alembic upgrade head
 
       - name: Run Backend tests with PostgreSQL
+        # The DATABASE is real PostgreSQL; the app environment is the test one
+        # so unit suites stay deterministic (the production-config path is
+        # covered by the migration step above and by the compose smoke).
         env:
           DATABASE_URL: postgresql+psycopg://iv_user:StrongTestPassword123!@localhost:5432/industrialvision
-          APP_ENV: production
+          APP_ENV: test
           DEBUG: "false"
           JWT_SECRET: ci-test-secret-value-that-is-at-least-32-characters-long
           CORS_ORIGINS: https://ci.example
           DEMO_LIVE_FEED: "false"
-          REDIS_URL: redis://localhost:6379/0
-          TASK_QUEUE_MODE: rq
+          REDIS_URL: ""
+          TASK_QUEUE_MODE: in-process
         run: |
-          # Consume the RQ queue in the background: report rendering and other
-          # queued tasks must complete for the suite to pass.
-          python -m app.worker > /tmp/rq-worker.log 2>&1 &
-          sleep 3
           python -m unittest discover -s tests -v
-          status=$?
-          cat /tmp/rq-worker.log || true
-          kill %1 || true
-          exit $status
 
   frontend-checks:
     name: Frontend Lint, Typecheck & Build

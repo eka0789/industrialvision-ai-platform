@@ -118,6 +118,8 @@ class RedisEventBusTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_degraded_publish_still_delivers_locally(self):
         """When Redis is down, publishes reach local subscribers and are not lost."""
+        server = FakeRedisServer()
+
         class FailingPublish(FakeSyncClient):
             def publish(self, channel, data):
                 raise ConnectionError("down")
