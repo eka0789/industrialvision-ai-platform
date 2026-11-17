@@ -117,3 +117,20 @@ def run_generate_report(org_id: int, period: str, fmt: str, payload: dict) -> di
 
     name = write_report_file(org_id, period, fmt, payload)
     return {"filename": name, "period": period, "format": fmt}
+
+
+@register_task("evidence_prune_retention")
+def run_evidence_prune(pass_retention_days: int | None = None, audit_retention_days: int | None = None) -> dict:
+    """Prune expired PASS evidence (7 days) while retaining FAIL/REVIEW audit evidence (1-2 years)."""
+    from app.db.session import SessionLocal
+    from app.services.evidence import prune_expired_evidence
+
+    db = SessionLocal()
+    try:
+        return prune_expired_evidence(
+            db,
+            pass_retention_days=pass_retention_days,
+            audit_retention_days=audit_retention_days,
+        )
+    finally:
+        db.close()

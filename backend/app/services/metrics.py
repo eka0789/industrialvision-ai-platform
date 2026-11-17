@@ -88,6 +88,18 @@ DB_OK = Gauge(
     "1 when the database connection check succeeds at scrape time",
     registry=registry,
 )
+CAMERA_QUALITY_ALERTS = Counter(
+    "iv_camera_quality_guard_alerts_total",
+    "Total camera lens blur/fog or illumination failure alerts triggered by quality_guard",
+    ["camera_id", "reason"],
+    registry=registry,
+)
+CAMERA_SHARPNESS_SCORE = Gauge(
+    "iv_camera_sharpness_laplacian",
+    "Latest Laplacian variance sharpness score measured by quality_guard per camera",
+    ["camera_id"],
+    registry=registry,
+)
 
 _HTTP_TEMPLATE_METRICS = ("iv_http_requests_total", "iv_http_request_duration_seconds_count")
 
@@ -123,3 +135,9 @@ def ws_opened(endpoint: str) -> None:
 
 def ws_closed(endpoint: str) -> None:
     WS_CONNECTIONS.labels(endpoint=endpoint).dec()
+
+
+def record_quality_guard(camera_id: int, status: str, sharpness_score: float) -> None:
+    CAMERA_SHARPNESS_SCORE.labels(camera_id=str(camera_id)).set(float(sharpness_score))
+    if status != "OK":
+        CAMERA_QUALITY_ALERTS.labels(camera_id=str(camera_id), reason=status).inc()

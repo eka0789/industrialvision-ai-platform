@@ -37,12 +37,14 @@ class InspectionOut(BaseModel):
     session_id: int
     product_id: str | None = None
     batch_id: str | None = None
+    defect_category: str | None = None
     model_name: str | None = None
     model_version: str | None = None
     detections: list[DetectionOut] = Field(default_factory=list)
     anomaly: AnomalyOut | None = None
     decision: InspectionDecision
     decision_reason: str | None = None
+    decision_rationale: str | None = None
     latency_ms: float | None = None
     evidence_path: str | None = None
     error_status: str | None = None

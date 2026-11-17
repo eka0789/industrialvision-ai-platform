@@ -91,7 +91,27 @@ export default function KnowledgePage() {
         title={<>Tanya dokumentasi pabrik.<br /><span className="text-muted">Jawaban selalu dengan sumber.</span></>}
         description="Unggah manual/SOP (TXT, CSV, PDF, DOCX), lalu ajukan pertanyaan. Ketika sumber tidak ditemukan, asisten menolak menjawab daripada mengarang."
         actions={canUpload ? (
-          <Button loading={uploading} onClick={() => fileInput.current?.click()}><FileUp size={17} />Unggah dokumen</Button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Button
+              variant="secondary"
+              loading={uploading}
+              onClick={async () => {
+                setUploading(true)
+                try {
+                  const res = await ragApi.seedFoodSops()
+                  toast(`Berhasil memuat ${res.documents.length} dokumen SOP Standar Pangan (HACCP / Washdown / Packaging).`)
+                  documents.reload()
+                } catch (reason) {
+                  toast(errorMessage(reason), 'warning')
+                } finally {
+                  setUploading(false)
+                }
+              }}
+            >
+              <BookOpen size={16} />Muat SOP Pangan (HACCP)
+            </Button>
+            <Button loading={uploading} onClick={() => fileInput.current?.click()}><FileUp size={17} />Unggah dokumen</Button>
+          </div>
         ) : undefined}
       />
       <input

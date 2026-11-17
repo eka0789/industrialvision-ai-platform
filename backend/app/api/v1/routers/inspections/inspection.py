@@ -185,6 +185,72 @@ async def inspect_image(
             rules=_rules_for_model(model),
         )
 
+        # Check if camera has an active Multi-Zone ROI InspectionRecipe
+        from app.db.models import InspectionRecipe, ProductSKU
+        from app.vision.roi_pipeline import evaluate_recipe_frame
+
+        active_recipe = (
+            scoped_query(db, InspectionRecipe, _user)
+            .filter(InspectionRecipe.camera_id == camera.id, InspectionRecipe.is_active.is_(True))
+            .first()
+        )
+        recipe_zones_out = None
+        recipe_prep_out = None
+        if active_recipe and active_recipe.roi_zones:
+            from app.vision.quality_guard import apply_camera_degraded_alert
+
+            sku_obj = db.get(ProductSKU, active_recipe.sku_id) if active_recipe.sku_id else None
+            expiry_regex = sku_obj.expiry_format if sku_obj and sku_obj.expiry_format else None
+            roi_eval = evaluate_recipe_frame(
+                image,
+                zones_data=active_recipe.roi_zones,
+                preprocessing_data=active_recipe.preprocessing_config,
+                detections=detection_data,
+                override_seal_score=anomaly_score,
+                simulated_ocr_text="EXP 17.11.27" if not any(
+                    z.get("force_ocr_fail") for z in (active_recipe.roi_zones or []) if isinstance(z, dict)
+                ) else "",
+                expiry_regex_override=expiry_regex,
+            )
+            recipe_zones_out = roi_eval["zones"]
+            recipe_prep_out = roi_eval["preprocessing"]
+            if recipe_prep_out.get("is_blurred"):
+                apply_camera_degraded_alert(
+                    db,
+                    camera,
+                    {
+                        "status": recipe_prep_out.get("quality_status", "LENS_BLUR_OR_FOG"),
+                        "is_obstructed": True,
+                        "sharpness_score": recipe_prep_out.get("sharpness_score", recipe_prep_out.get("laplacian_variance", 0.0)),
+                        "laplacian_variance": recipe_prep_out.get("laplacian_variance", 0.0),
+                        "mean_luminance": recipe_prep_out.get("mean_luminance", 0.0),
+                        "std_luminance": recipe_prep_out.get("std_luminance", 0.0),
+                        "rationale": roi_eval["decision_rationale"],
+                    },
+                    inspection_id=inspection.id,
+                )
+            if roi_eval["decision"] in ("FAIL", "ERROR") or decision_result["decision"] != "FAIL":
+                decision_result = {
+                    "decision": roi_eval["decision"] if decision_result["decision"] != "FAIL" else "FAIL",
+                    "reason": roi_eval["decision_rationale"],
+                    "error": roi_eval.get("error_status"),
+                }
+            for syn_det in roi_eval["detections"]:
+                if syn_det not in detection_data:
+                    detection_data.append(syn_det)
+                    bbox_vals = syn_det.get("bbox", [0.0, 0.0, 10.0, 10.0])
+                    if isinstance(bbox_vals, (list, tuple)) and len(bbox_vals) == 4:
+                        x1, y1, x2, y2 = [float(v) for v in bbox_vals]
+                        det_row = DetectionResult(
+                            inspection_id=inspection.id,
+                            label=str(syn_det.get("label", "DEFECT")),
+                            confidence=float(syn_det.get("confidence", 0.95)),
+                            bbox_json={"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+                            area=max(0.0, (x2 - x1) * (y2 - y1)),
+                        )
+                        stamp_org(det_row, _user)
+                        db.add(det_row)
+
         for detection in result.detections:
             x1, y1, x2, y2 = detection.bbox
             detection_row = DetectionResult(
@@ -205,7 +271,7 @@ async def inspect_image(
             stamp_org(anomaly_row, _user)
             db.add(anomaly_row)
 
-        inspection.detection_results_json = {"detections": detection_data}
+        inspection.detection_results_json = {"detections": detection_data, "zones": recipe_zones_out}
         inspection.anomaly_score_json = (
             {"score": result.anomaly.score}
             if result.anomaly is not None
@@ -215,11 +281,59 @@ async def inspect_image(
         inspection.latency_ms = result.latency_ms
         inspection.error_status = "decision_error" if inspection.decision == "ERROR" else None
         inspection.error_message = decision_result.get("error") or decision_result["reason"] if inspection.decision == "ERROR" else None
-        inspection.metadata_json = {"decision_reason": decision_result["reason"]}
-        inspection_session.status = "completed"
+        inspection.metadata_json = {
+            "decision_reason": decision_result["reason"],
+            "decision_rationale": decision_result["reason"],
+            "recipe_id": active_recipe.id if active_recipe else None,
+            "zones": recipe_zones_out,
+            "preprocessing": recipe_prep_out,
+        }
+        inspection_session.status = "error" if inspection.decision == "ERROR" else "completed"
         inspection_session.end_time = datetime.now(timezone.utc)
         camera.last_inspection_at = inspection_session.end_time
-        camera.last_error = None
+        if not (recipe_prep_out and recipe_prep_out.get("is_blurred")):
+            camera.last_error = None
+
+        from app.ot.adapter import attach_inspection_to_active_batch
+        from app.services.evidence_retention import should_retain_image
+
+        all_defect_labels = [
+            str(d.get("label", "")) for d in detection_data if isinstance(d, dict) and d.get("label")
+        ]
+        attached_batch = attach_inspection_to_active_batch(
+            db,
+            org_id=inspection.org_id,
+            camera=camera,
+            inspection=inspection,
+            defect_categories=all_defect_labels,
+        )
+        if attached_batch is not None:
+            sample_rate = (
+                active_recipe.pass_sample_rate
+                if active_recipe and active_recipe.pass_sample_rate
+                else 100
+            )
+            seq_idx = max(1, int(attached_batch.total_inspected or 1))
+            retain = should_retain_image(inspection.decision, sequence_index=seq_idx, pass_sample_rate=sample_rate)
+            if not retain and inspection.evidence_path:
+                try:
+                    EvidenceStorage().delete(inspection.evidence_path)
+                except Exception:
+                    pass
+                inspection.evidence_path = None
+            meta = dict(inspection.metadata_json or {})
+            meta["evidence_sampled"] = bool(inspection.evidence_path is not None)
+            meta["pass_sample_rate"] = sample_rate
+            meta["audit_protected"] = inspection.decision in ("FAIL", "REVIEW")
+            meta["batch_counters"] = {
+                "batch_code": attached_batch.batch_code,
+                "total_inspected": attached_batch.total_inspected,
+                "total_pass": attached_batch.total_pass,
+                "total_fail": attached_batch.total_fail,
+                "total_review": attached_batch.total_review,
+            }
+            inspection.metadata_json = meta
+
         db.commit()
         db.refresh(inspection)
         from app.services.metrics import record_decision

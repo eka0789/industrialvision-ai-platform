@@ -45,7 +45,11 @@ from app.agent.tools import APPROVAL_TTL_MINUTES  # noqa: E402  (single TTL sour
 
 # Deterministic rule-based planner: intent keywords → tool chains.
 INTENT_RULES: list[tuple[str, list[str]]] = [
-    (r"knowledge|manual|sop|procedure|dokumen|panduan", ["kb_search"]),
+    (r"batch hold|karantina batch|draft_batch_hold_notice|foreign_matter|benda asing", ["draft_batch_hold_notice"]),
+    (r"threshold|propose_recipe_threshold_adjustment|psi drift|data drift|ambang batas resep", ["propose_recipe_threshold_adjustment"]),
+    (r"line quality|ringkasan kualitas batch|get_line_quality_summary|yield batch", ["get_line_quality_summary"]),
+    (r"spike|lonjakan|seal_leak|seal defect|5\s*menit|5\s*minute|korektif", ["check_defect_spike"]),
+    (r"knowledge|manual|sop|procedure|dokumen|panduan|haccp", ["kb_search"]),
     (r"predict|failure|gagal|prediksi|rul|health|kesehatan", ["machine_status", "predict_failure"]),
     (r"inspection|inspeksi|defect|cacat|decision", ["latest_inspections", "analyze_defect"]),
     (r"production|throughput|yield|analytics|statistik", ["production_analytics"]),
@@ -82,6 +86,31 @@ def _args_from_question(tool_name: str, question: str) -> dict[str, Any]:
     if tool_name == "create_maintenance_request":
         match = re.search(r"(?:machine|mesin)\s*#?(\d+)", question.lower())
         return {"machine_id": int(match.group(1)) if match else 1, "title": question[:200]}
+    if tool_name == "get_line_quality_summary":
+        match = re.search(r"batch\s*#?(\d+)", question.lower())
+        return {"batch_id": int(match.group(1))} if match else {}
+    if tool_name == "draft_batch_hold_notice":
+        match = re.search(r"batch\s*#?(\d+)", question.lower())
+        qty_match = re.search(r"(\d+)\s*(?:pcs|unit|kemasan)", question.lower())
+        return {
+            "batch_id": int(match.group(1)) if match else 1,
+            "reason": question[:300],
+            "affected_qty": int(qty_match.group(1)) if qty_match else 120,
+        }
+    if tool_name == "propose_recipe_threshold_adjustment":
+        rec_match = re.search(r"(?:recipe|resep)\s*#?(\d+)", question.lower())
+        thr_match = re.search(r"(0\.\d+)", question.lower())
+        return {
+            "recipe_id": int(rec_match.group(1)) if rec_match else 1,
+            "zone_id": "roi_1_seal",
+            "new_threshold": float(thr_match.group(1)) if thr_match else 0.62,
+            "justification": question[:300],
+        }
+    if tool_name == "check_defect_spike":
+        for cat in ("seal_leak", "missing_exp_date", "foreign_matter", "burnt"):
+            if cat in question.lower():
+                return {"defect_category": cat, "window_minutes": 5, "spike_threshold": 3}
+        return {"defect_category": "seal_leak", "window_minutes": 5, "spike_threshold": 3}
     return {}
 
 
@@ -166,7 +195,20 @@ def _compose_response(question: str, steps: list[dict[str, Any]]) -> str:
         result = step.get("result") or {}
         status = result.get("status")
         if status == "approval_required":
-            parts.append(f"Saya menyiapkan '{step['tool']}' (ID persetujuan #{result.get('approval_id')}) — menunggu persetujuan manusia (owner/admin) sebelum dieksekusi.")
+            if step["tool"] == "check_defect_spike":
+                parts.append(
+                    f"{result.get('recommended_action')} (ID persetujuan HITL #{result.get('approval_id')})."
+                )
+            elif step["tool"] == "draft_batch_hold_notice":
+                parts.append(
+                    f"{result.get('draft_notice')} (ID persetujuan HITL #{result.get('approval_id')})."
+                )
+            elif step["tool"] == "propose_recipe_threshold_adjustment":
+                parts.append(
+                    f"{result.get('note')} (ID persetujuan HITL #{result.get('approval_id')})."
+                )
+            else:
+                parts.append(f"Saya menyiapkan '{step['tool']}' (ID persetujuan #{result.get('approval_id')}) — menunggu persetujuan manusia (owner/admin) sebelum dieksekusi.")
             continue
         if step["status"] != "ok":
             parts.append(f"Langkah {step['tool']} gagal ({step['status']})" + (f": {result.get('error')}" if result.get("error") else "") + ".")
@@ -174,6 +216,11 @@ def _compose_response(question: str, steps: list[dict[str, Any]]) -> str:
         if step["tool"] == "kb_search":
             hits = result.get("results", [])
             parts.append(f"Dari basis pengetahuan: {len(hits)} sumber ditemukan. " + " ".join(f"[doc {h['document_id']}] {h['snippet'][:140]}" for h in hits[:2]))
+        elif step["tool"] == "get_line_quality_summary":
+            parts.append(
+                f"Ringkasan kualitas Batch {result.get('batch_code') or '#'}: FPY {result.get('first_pass_yield_pct')}% "
+                f"(Total {result.get('total_inspected')}, FAIL {result.get('total_fail')}), tren defect: {result.get('defect_trends')}."
+            )
         elif step["tool"] == "machine_status":
             machines = result.get("machines", [])
             parts.append("Status mesin: " + "; ".join(f"{m['code']} ({m['machine_status']})" for m in machines[:5]))

@@ -54,6 +54,20 @@ class Settings(BaseSettings):
 
     EVIDENCE_ROOT: str = "data/evidence"
     SAMPLE_MEDIA_DIR: str = "data/samples"
+    # Smart Evidence Retention (Food Division HACCP / BPOM compliance):
+    # 100% of FAIL/REVIEW/ERROR evidence retained for EVIDENCE_AUDIT_RETENTION_DAYS (default 2 years);
+    # PASS evidence sampled at 1-in-N in batch/recipe mode and pruned after EVIDENCE_PASS_RETENTION_DAYS.
+    EVIDENCE_PASS_SAMPLE_RATE: int = Field(default=500, ge=1, le=100000)
+    EVIDENCE_PASS_RETENTION_DAYS: int = Field(default=7, ge=1, le=3650)
+    EVIDENCE_AUDIT_RETENTION_DAYS: int = Field(default=730, ge=30, le=3650)
+
+    # Operational Technology (OT) Bridge defaults for conveyor trigger & PLC rejector
+    OT_DEFAULT_PROTOCOL: Literal["simulated", "modbus_tcp", "mqtt", "gpio_serial"] = "simulated"
+    OT_PLC_HOST: str = "127.0.0.1"
+    OT_PLC_PORT: int = Field(default=502, ge=1, le=65535)
+    OT_MQTT_BROKER: str = ""
+    OT_REJECT_PULSE_MS: int = Field(default=45, ge=5, le=2000)
+    OT_TARGET_INFERENCE_MS: float = Field(default=30.0, gt=1.0, le=1000.0)
 
     # Demo live feed: fabricates realistic inspections for simulated cameras and
     # broadcasts them over /ws/inspections/live. Refused at startup in production.

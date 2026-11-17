@@ -222,3 +222,27 @@ def chat(
         "provider": result.provider,
         "citations": result.citations,
     }
+
+
+@router.post("/seed-food-sops", status_code=status.HTTP_201_CREATED)
+def seed_food_division_sops(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*UPLOAD_ROLES)),
+) -> dict:
+    """Ingest standard Food Division SOPs (HACCP Packaging Defect CCP, Washdown Camera, Heat Sealer PdM)."""
+    from app.rag.food_sops import ensure_food_sops_ingested
+
+    org_id = get_user_org_id(user)
+    docs = ensure_food_sops_ingested(db, org_id=org_id, user_id=user.id)
+    db.add(
+        AuditLog(
+            user_id=user.id,
+            org_id=org_id,
+            action="rag.food_sops.seeded",
+            details_json={"count": len(docs)},
+            ip_address=request.client.host if request.client else None,
+        )
+    )
+    db.commit()
+    return {"status": "ok", "documents": docs}

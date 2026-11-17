@@ -6,7 +6,7 @@ import { Button, EmptyState, ErrorState, LoadingBlock, PageHeader, StatusBadge }
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
-import type { AgentRun } from '../types'
+import type { AgentRun, IncidentTriageResult } from '../types'
 import { errorMessage } from '../utils/errors'
 import { formatDate } from '../utils/format'
 
@@ -16,11 +16,32 @@ export default function AgentPage() {
   const [question, setQuestion] = useState('')
   const [asking, setAsking] = useState(false)
   const [current, setCurrent] = useState<AgentRun | null>(null)
+  const [triageResult, setTriageResult] = useState<IncidentTriageResult | null>(null)
   const runs = useApi(() => agentApi.runs(), [current?.id])
-  const approvals = useApi(() => agentApi.approvals('pending'), [current?.id])
+  const approvals = useApi(() => agentApi.approvals('pending'), [current?.id, triageResult?.approval_id])
   const [decidingId, setDecidingId] = useState<number | null>(null)
 
-  const canApprove = user?.role === 'owner' || user?.role === 'admin'
+  const canApprove = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'ai_engineer'
+
+  const triggerIncidentTriage = async (
+    incidentType: 'FOREIGN_MATTER' | 'LENS_BLUR_OR_FOG' | 'PSI_DRIFT' | 'MISSING_EXP_DATE' | 'SEAL_DEFECT',
+  ) => {
+    setAsking(true)
+    try {
+      const res = await agentApi.triageIncident({ incident_type: incidentType })
+      setTriageResult(res)
+      toast(
+        res.approval_id
+          ? `Analisis SOP selesai & tindakan HITL #${res.approval_id} telah disiapkan.`
+          : `Analisis SOP selesai untuk insiden ${incidentType}.`,
+      )
+      approvals.reload()
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    } finally {
+      setAsking(false)
+    }
+  }
 
   const ask = async (event: FormEvent) => {
     event.preventDefault()
@@ -60,10 +81,64 @@ export default function AgentPage() {
   return (
     <div className="page agent-page">
       <PageHeader
-        eyebrow="OPERATIONS AGENT"
+        eyebrow="OPERATIONS AGENT & HACCP CCP ASSISTANT"
         title={<>Asisten operasi.<br /><span className="text-muted">Tindakan berdampak selalu butuh setuju manusia.</span></>}
-        description="Ajukan pertanyaan operasional; agen merencanakan dan menjalankan alat (pencarian knowledge, status mesin, prediksi kegagalan, analitik) dengan batas iterasi dan timeout per alat."
+        description="Ajukan pertanyaan operasional atau deteksi otomatis lonjakan FAIL 5 menit (Seal Defect) yang berkorelasi dengan suhu Heat Sealer PdM & SOP HACCP di RAG."
+        actions={
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Button
+              variant="secondary"
+              loading={asking}
+              onClick={() => triggerIncidentTriage('FOREIGN_MATTER')}
+            >
+              <CircleAlert size={16} />Analisis & Tindakan Korektif AI (Foreign Matter)
+            </Button>
+            <Button
+              variant="secondary"
+              loading={asking}
+              onClick={() => triggerIncidentTriage('LENS_BLUR_OR_FOG')}
+            >
+              <Bot size={16} />Analisis & Tindakan Korektif AI (Lens Blur / Drift)
+            </Button>
+            <Button
+              variant="secondary"
+              loading={asking}
+              onClick={async () => {
+                setAsking(true)
+                try {
+                  const res = await agentApi.evaluateDefectSpike({ defect_category: 'seal_leak', window_minutes: 5, spike_threshold: 3 })
+                  toast(res.recommended_action, res.spike_detected ? 'warning' : 'info')
+                  approvals.reload()
+                  runs.reload()
+                } catch (reason) {
+                  toast(errorMessage(reason), 'warning')
+                } finally {
+                  setAsking(false)
+                }
+              }}
+            >
+              <Bot size={16} />Cek Lonjakan Seal Defect (5 Menit)
+            </Button>
+          </div>
+        }
       />
+
+      {triageResult && (
+        <section className="panel" aria-label="Hasil Triase Insiden Proaktif" style={{ marginBottom: '1.25rem', padding: '1rem', borderLeft: '4px solid #f97316' }}>
+          <h2 style={{ marginTop: 0 }}>Triase Insiden Proaktif: {triageResult.incident_type}</h2>
+          <p>{triageResult.sop_answer}</p>
+          {!!triageResult.sop_citations.length && (
+            <small style={{ display: 'block', marginBottom: '0.5rem' }}>
+              Sitasi SOP RAG (1:1): {triageResult.sop_citations.map((c) => `[${c.index}] doc #${c.document_id}`).join(', ')}
+            </small>
+          )}
+          {triageResult.approval_id && (
+            <p style={{ margin: 0 }}>
+              <strong>Mitigasi HITL Disiapkan:</strong> ID Persetujuan #{triageResult.approval_id} menunggu persetujuan di Kotak Persetujuan di bawah.
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="agent-chat" aria-labelledby="agent-chat-heading">
         <h2 id="agent-chat-heading"><Bot size={18} /> Tanya agen</h2>

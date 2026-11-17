@@ -35,8 +35,17 @@ FEATURES = [
     "Torque [Nm]",
     "Tool wear [min]",
 ]
+FOOD_FEATURES = [
+    "sealer_temp_c",
+    "pneumatic_pressure_bar",
+    "conveyor_speed_mpm",
+    "motor_current_amp",
+    "vibration_mm_s",
+    "ambient_humidity_pct",
+]
 FAILURE_FLAG = "Machine failure"
 FAILURE_MODES = ["TWF", "HDF", "PWF", "OSF", "RNF"]
+FOOD_FAILURE_MODES = ["SEAL_TEMP_LOW", "SEAL_TEMP_HIGH", "PNEUMATIC_DROP", "CONVEYOR_OVERLOAD", "BEARING_VIBRATION_HIGH"]
 COLUMNS = ["UDI", "Product ID", "Type", *FEATURES, FAILURE_FLAG, *FAILURE_MODES]
 
 # AI4I 2020 documented generative thresholds (mirror, not measured facts):
@@ -224,6 +233,40 @@ def main() -> int:
         )
     )
     return 0
+
+
+def generate_food_pdm_dataset(rows: int = 1000, seed: int = 42) -> list[dict]:
+    """Generate synthetic Food Processing & Packaging Equipment telemetry rows (Fase 5)."""
+    from app.pdm.schemas import FOOD_MACHINE_TYPES, evaluate_food_equipment_anomalies
+
+    rng = random.Random(seed)
+    out: list[dict] = []
+    for i in range(rows):
+        m_type = rng.choice(FOOD_MACHINE_TYPES)
+        # 82% normal operation, 18% realistic thermal/pneumatic/bearing anomaly
+        is_anomaly_injection = rng.random() < 0.18
+        sealer_temp_c = round(rng.uniform(122.0, 138.0) if (is_anomaly_injection and rng.random() < 0.5) else rng.uniform(145.0, 180.0), 1)
+        pneumatic_bar = round(rng.uniform(4.1, 5.2) if (is_anomaly_injection and rng.random() < 0.4) else rng.uniform(5.7, 6.8), 2)
+        speed_mpm = round(rng.gauss(120.0, 8.0), 1)
+        current_amp = round(rng.uniform(14.5, 18.0) if (is_anomaly_injection and rng.random() < 0.25) else rng.uniform(6.5, 11.5), 2)
+        vibration_mm_s = round(rng.uniform(4.8, 7.5) if (is_anomaly_injection and rng.random() < 0.25) else rng.uniform(0.8, 3.2), 2)
+        humidity_pct = round(rng.uniform(45.0, 72.0), 1)
+
+        sample = {
+            "UDI": i + 1,
+            "machine_type": m_type,
+            "sealer_temp_c": sealer_temp_c,
+            "pneumatic_pressure_bar": pneumatic_bar,
+            "conveyor_speed_mpm": speed_mpm,
+            "motor_current_amp": current_amp,
+            "vibration_mm_s": vibration_mm_s,
+            "ambient_humidity_pct": humidity_pct,
+        }
+        modes = evaluate_food_equipment_anomalies(sample)
+        sample["failure_modes"] = modes
+        sample[FAILURE_FLAG] = 1 if modes else 0
+        out.append(sample)
+    return out
 
 
 if __name__ == "__main__":

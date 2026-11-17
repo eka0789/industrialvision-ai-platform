@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Camera, Check, CircleAlert, ScanSearch, Settings2 } from 'lucide-react'
+import type { FormEvent } from 'react'
+import { ArrowRight, ArrowUpRight, Camera, Check, CircleAlert, PackageCheck, Pause, Play, Plus, ScanSearch, Settings2, Square } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { cameraApi, inspectionApi } from '../api'
+import { batchApi, cameraApi, inspectionApi } from '../api'
 import { InspectionTable } from '../components/InspectionTable'
-import { EmptyState, ErrorState, LoadingBlock, PageHeader, StatusBadge } from '../components/Ui'
+import { Button, EmptyState, ErrorState, LoadingBlock, PageHeader, StatusBadge } from '../components/Ui'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
 import { useLiveFeed } from '../hooks/useLiveFeed'
+import { useToast } from '../hooks/useToast'
 import type { Camera as CameraType, Decision, Inspection } from '../types'
 import { cameraCode, formatDate, formatPercent } from '../utils/format'
+import { errorMessage } from '../utils/errors'
 
 export default function OverviewPage() {
   const { user } = useAuth()
@@ -67,7 +70,21 @@ export default function OverviewPage() {
     <div className="page overview-page">
       <PageHeader eyebrow="OPERATIONS / OVERVIEW" title={<>Ruang kendali<span className="title-dot">.</span></>}
         description={`Selamat datang, ${user?.username}. Berikut aktivitas quality inspection Anda.`}
-        actions={<Link to="/inspections/new" className="button button--primary"><ScanSearch size={17} />Mulai inspeksi<ArrowUpRight size={16} /></Link>} />
+        actions={
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Link to="/agent" className="button button--secondary">
+              Analisis & Tindakan Korektif AI<ArrowRight size={16} />
+            </Link>
+            <Link to="/batches" className="button button--secondary">
+              Batch & Audit Reports<ArrowRight size={16} />
+            </Link>
+            <Link to="/recipes" className="button button--secondary">
+              Ganti SKU / Changeover<ArrowRight size={16} />
+            </Link>
+            <Link to="/inspections/new" className="button button--primary"><ScanSearch size={17} />Mulai inspeksi<ArrowUpRight size={16} /></Link>
+          </div>
+        } />
+      <ActiveBatchBanner canOperate={user?.role !== 'viewer'} />
       {isLoading && <LoadingBlock label="Menyusun data operasional…" />}
       {error && <ErrorState message={error} retry={refreshAll} />}
       {!isLoading && !error && history && (
@@ -133,4 +150,157 @@ export default function OverviewPage() {
 
 function inspectionCodeForTitle(id: number) {
   return `INS-${String(id).padStart(6, '0')}`
+}
+
+function ActiveBatchBanner({ canOperate }: { canOperate: boolean }) {
+  const toast = useToast()
+  const batches = useApi(() => batchApi.list(), [])
+  const { onInspection } = useLiveFeed()
+  const [lotCode, setLotCode] = useState('')
+  const [skuCode, setSkuCode] = useState('BIS-COK-100G')
+  const [shift, setShift] = useState('SHIFT_1')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => onInspection(() => { batches.reload() }), [onInspection])
+
+  const activeBatch = (batches.data ?? []).find((b) =>
+    ['ACTIVE', 'active', 'PAUSED', 'paused'].includes(b.status),
+  )
+
+  const startBatch = async (e: FormEvent) => {
+    e.preventDefault()
+    const code = lotCode.trim() || `LOT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-A1`
+    setBusy(true)
+    try {
+      await batchApi.create({
+        batch_code: code,
+        sku_code: skuCode.trim() || 'BIS-COK-100G',
+        line_name: 'Line 01 — Food Packaging',
+        shift,
+        target_quantity: 5000,
+      })
+      setLotCode('')
+      batches.reload()
+      toast(`Production Batch "${code}" dimulai (${shift}).`)
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const togglePause = async () => {
+    if (!activeBatch) return
+    setBusy(true)
+    try {
+      if (activeBatch.status.toUpperCase() === 'PAUSED') {
+        await batchApi.resume(activeBatch.id)
+        toast(`Batch ${activeBatch.batch_code} dilanjutkan (ACTIVE).`)
+      } else {
+        await batchApi.pause(activeBatch.id)
+        toast(`Batch ${activeBatch.batch_code} dijeda (PAUSED).`)
+      }
+      batches.reload()
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const closeActiveBatch = async () => {
+    if (!activeBatch) return
+    setBusy(true)
+    try {
+      await batchApi.close(activeBatch.id)
+      batches.reload()
+      toast(`Batch ${activeBatch.batch_code} ditutup (CLOSED) — siap untuk Audit Report PDF/CSV.`)
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section
+      className="panel"
+      aria-label="Active Production Batch Banner"
+      data-testid="active-batch-banner"
+      style={{
+        marginBottom: '1.25rem',
+        padding: '0.95rem 1.15rem',
+        borderLeft: '4px solid #d6f779',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem' }}>
+        <div>
+          <p className="eyebrow" style={{ marginBottom: '0.2rem' }}>
+            <PackageCheck size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+            ACTIVE PRODUCTION BATCH / HACCP LOT TRACEABILITY
+          </p>
+          {activeBatch ? (
+            <div>
+              <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: '1.05rem' }}>{activeBatch.batch_code}</strong>
+                <StatusBadge value={activeBatch.status.toUpperCase() === 'PAUSED' ? 'inactive' : 'active'} />
+                <span>SKU: <code>{activeBatch.sku_code}</code> · {activeBatch.line_name ?? 'Line 01'} · <strong>{activeBatch.shift}</strong></span>
+              </div>
+              <small style={{ display: 'block', marginTop: '0.25rem' }}>
+                Progress: <strong>{activeBatch.total_inspected} / {activeBatch.target_quantity}</strong> pcs ·
+                First Pass Yield: <strong>{activeBatch.first_pass_yield_pct ?? activeBatch.yield_pct}%</strong> (PASS: {activeBatch.total_pass} · FAIL: {activeBatch.total_fail} · REVIEW: {activeBatch.total_review})
+              </small>
+            </div>
+          ) : (
+            <p style={{ margin: 0, fontSize: '0.88rem' }}>
+              Belum ada batch produksi aktif pada shift ini. Mulai batch baru agar seluruh inspeksi tertaut otomatis.
+            </p>
+          )}
+        </div>
+
+        {canOperate && (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {activeBatch ? (
+              <>
+                <Button variant="secondary" loading={busy} onClick={togglePause}>
+                  {activeBatch.status.toUpperCase() === 'PAUSED' ? <Play size={15} /> : <Pause size={15} />}
+                  {activeBatch.status.toUpperCase() === 'PAUSED' ? 'Resume Batch' : 'Pause Batch'}
+                </Button>
+                <Button variant="secondary" loading={busy} onClick={closeActiveBatch}>
+                  <Square size={15} />Close Batch
+                </Button>
+                <Link to="/batches" className="button button--secondary">
+                  Audit PDF/CSV<ArrowRight size={15} />
+                </Link>
+              </>
+            ) : (
+              <form onSubmit={startBatch} style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  value={lotCode}
+                  onChange={(e) => setLotCode(e.target.value)}
+                  placeholder="Kode Lot (mis. LOT-20261117-A1)"
+                  aria-label="Kode Lot Batch"
+                />
+                <input
+                  value={skuCode}
+                  onChange={(e) => setSkuCode(e.target.value)}
+                  placeholder="SKU"
+                  aria-label="SKU Batch"
+                  style={{ width: '130px' }}
+                />
+                <select value={shift} onChange={(e) => setShift(e.target.value)} aria-label="Shift Produksi">
+                  <option value="SHIFT_1">SHIFT_1</option>
+                  <option value="SHIFT_2">SHIFT_2</option>
+                  <option value="SHIFT_3">SHIFT_3</option>
+                </select>
+                <Button type="submit" loading={busy}>
+                  <Plus size={15} />Start Batch
+                </Button>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  )
 }

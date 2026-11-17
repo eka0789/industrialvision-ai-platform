@@ -13,6 +13,8 @@ const NewInspectionPage = lazy(() => import('./pages/NewInspectionPage'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const InspectionDetailPage = lazy(() => import('./pages/InspectionDetailPage'))
 const CamerasPage = lazy(() => import('./pages/CamerasPage'))
+const RecipesPage = lazy(() => import('./pages/RecipesPage'))
+const BatchesPage = lazy(() => import('./pages/BatchesPage'))
 const ModelsPage = lazy(() => import('./pages/ModelsPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const MaintenancePage = lazy(() => import('./pages/MaintenancePage'))
@@ -42,6 +44,8 @@ export default function App() {
                   <Route path="/inspections/new" element={<NewInspectionPage />} />
                   <Route path="/inspections/:id" element={<InspectionDetailPage />} />
                   <Route path="/cameras" element={<CamerasPage />} />
+                  <Route path="/recipes" element={<RecipesPage />} />
+                  <Route path="/batches" element={<BatchesPage />} />
                   <Route path="/models" element={<ModelsPage />} />
                   <Route path="/maintenance" element={<MaintenancePage />} />
                   <Route path="/knowledge" element={<KnowledgePage />} />

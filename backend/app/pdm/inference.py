@@ -97,6 +97,38 @@ def _rules_failure_modes(features: dict[str, float]) -> list[str]:
     return modes
 
 
+def _food_failure_modes(food_metrics: dict[str, float | None]) -> list[str]:
+    """Food Division packaging & thermal machine failure modes (Fase 5)."""
+    from app.pdm.schemas import evaluate_food_equipment_anomalies
+
+    return evaluate_food_equipment_anomalies(food_metrics)
+
+
+def correlate_vision_pdm(db, machine, failure_modes: list[str], food_metrics: dict[str, float | None]) -> dict[str, Any]:
+    """Cross-correlate machine sensor anomalies (e.g. SEAL_TEMP_LOW) with Vision AI defects (SEAL_DEFECT / seal_leak)."""
+    from app.services.correlation_engine import evaluate_vision_pdm_correlation
+
+    del failure_modes, food_metrics
+    if not machine.camera_id:
+        return {
+            "correlated": False,
+            "camera_id": None,
+            "recent_fail_count": 0,
+            "seal_leak_count": 0,
+            "seal_defect_count": 0,
+            "diagnosis": None,
+        }
+    return evaluate_vision_pdm_correlation(
+        db,
+        org_id=machine.org_id,
+        camera_id=machine.camera_id,
+        machine_id=machine.id,
+        window_minutes=5,
+        min_seal_defects=1,
+        auto_create_request=False,
+    )
+
+
 def _recommendation(health: float) -> str:
     if health >= 0.75:
         return "no action"
@@ -137,10 +169,30 @@ def predict_for_machine(db, machine) -> dict[str, Any]:
         }
 
     features = dict(zip(FEATURE_NAMES, latest.features()))
+    food_metrics = latest.food_features() if hasattr(latest, "food_features") else {}
     result = predict_features(db, org_id=machine.org_id, features=features)
+
+    food_modes = _food_failure_modes(food_metrics)
+    if food_modes and result.get("mode") != MODE_ERROR:
+        combined_modes = list(result.get("failure_modes") or [])
+        for fm in food_modes:
+            if fm not in combined_modes:
+                combined_modes.append(fm)
+        result["failure_modes"] = combined_modes
+        if result.get("mode") == MODE_RULES:
+            result["health"] = 1.0 if not combined_modes else (0.5 if len(combined_modes) == 1 else 0.0)
+            result["recommendation"] = _recommendation(result["health"])
+        elif result.get("health") is not None:
+            result["health"] = round(min(float(result["health"]), 0.35 if len(food_modes) == 1 else 0.1), 4)
+            result["recommendation"] = _recommendation(result["health"])
+
     result["machine_id"] = machine.id
     result["reading_id"] = latest.id
     result["features"] = features
+    result["food_features"] = food_metrics
+    result["vision_correlation"] = correlate_vision_pdm(
+        db, machine, list(result.get("failure_modes") or []), food_metrics
+    )
     return result
 
 

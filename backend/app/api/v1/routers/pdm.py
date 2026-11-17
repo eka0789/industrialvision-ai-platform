@@ -20,6 +20,8 @@ from app.core.constants import Role as RoleNames
 from app.db.models import AuditLog, Machine, MaintenanceRequest, MaintenanceSchedule, SensorReading, User
 from app.db.session import get_db
 from app.pdm import inference as pdm_inference
+from app.pdm.schemas import FOOD_MACHINE_TYPES, FoodSensorReadingInput
+from app.services.correlation_engine import evaluate_vision_pdm_correlation
 from app.services.tenant import get_user_org_id, scoped_one, scoped_query, stamp_org
 
 router = APIRouter(prefix="/pdm", tags=["predictive-maintenance"])
@@ -61,13 +63,8 @@ class MachineOut(BaseModel):
     created_at: datetime
 
 
-class ReadingCreate(BaseModel):
-    air_temperature_k: float = Field(ge=250, le=340)
-    process_temperature_k: float = Field(ge=250, le=360)
-    rotational_speed_rpm: float = Field(ge=0, le=4000)
-    torque_nm: float = Field(ge=0, le=500)
-    tool_wear_min: float = Field(ge=0, le=300)
-    recorded_at: datetime | None = None
+class ReadingCreate(FoodSensorReadingInput):
+    pass
 
 
 class PredictionOut(BaseModel):
@@ -83,6 +80,8 @@ class PredictionOut(BaseModel):
     recommendation: str
     reading_id: int | None = None
     features: dict | None = None
+    food_features: dict | None = None
+    vision_correlation: dict | None = None
 
 
 class MaintenanceRequestCreate(BaseModel):
@@ -202,6 +201,13 @@ def add_reading(
         rotational_speed_rpm=payload.rotational_speed_rpm,
         torque_nm=payload.torque_nm,
         tool_wear_min=payload.tool_wear_min,
+        sealer_temp_c=payload.sealer_temp_c,
+        pneumatic_pressure_bar=payload.pneumatic_pressure_bar,
+        zone_temp_c=payload.zone_temp_c,
+        conveyor_speed_mpm=payload.conveyor_speed_mpm,
+        motor_current_a=payload.effective_motor_current(),
+        vibration_mm_s=payload.vibration_mm_s,
+        ambient_humidity_pct=payload.ambient_humidity_pct,
         recorded_at=payload.recorded_at or datetime.now(timezone.utc),
     )
     stamp_org(reading, user)
@@ -214,6 +220,7 @@ def add_reading(
         "machine_id": machine.id,
         "recorded_at": reading.recorded_at,
         "features": dict(zip(pdm_inference.FEATURE_NAMES, reading.features())),
+        "food_features": reading.food_features(),
     }
 
 
@@ -237,6 +244,7 @@ def list_readings(
             "id": row.id,
             "recorded_at": row.recorded_at,
             "features": dict(zip(pdm_inference.FEATURE_NAMES, row.features())),
+            "food_features": row.food_features(),
         }
         for row in rows
     ]
@@ -255,6 +263,47 @@ def predict(
     machine = _machine_or_404(db, user, machine_id)
     result = pdm_inference.predict_for_machine(db, machine)
     return PredictionOut(**result)
+
+
+@router.get("/machines/{machine_id}/correlate-vision")
+def correlate_machine_with_vision(
+    machine_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*READ_ROLES)),
+) -> dict:
+    """Cross-correlate packaging machine sensor anomalies (Heat Sealer / Pneumatic) with Vision AI defects."""
+    machine = _machine_or_404(db, user, machine_id)
+    result = pdm_inference.predict_for_machine(db, machine)
+    return result.get("vision_correlation") or {
+        "correlated": False,
+        "camera_id": machine.camera_id,
+        "recent_fail_count": 0,
+        "seal_leak_count": 0,
+        "diagnosis": "No sensor readings available for correlation.",
+    }
+
+
+@router.post("/machines/{machine_id}/correlate")
+def correlate_and_propose_maintenance(
+    machine_id: int,
+    window_minutes: int = Query(default=2, ge=1, le=60),
+    min_seal_defects: int = Query(default=4, ge=1, le=100),
+    auto_create_request: bool = Query(default=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*WRITE_ROLES)),
+) -> dict:
+    """Evaluate Vision-PdM correlation and automatically create a pending MaintenanceRequest if correlated."""
+    machine = _machine_or_404(db, user, machine_id)
+    return evaluate_vision_pdm_correlation(
+        db=db,
+        org_id=get_user_org_id(user),
+        machine_id=machine.id,
+        camera_id=machine.camera_id,
+        window_minutes=window_minutes,
+        min_seal_defects=min_seal_defects,
+        auto_create_request=auto_create_request,
+        requested_by_user_id=user.id,
+    )
 
 
 # ── Maintenance requests (approval workflow) ───────────────────────────────

@@ -562,14 +562,230 @@ def seed_demo_data(
                 ip_address="192.168.1.24",
                 created_at=now - timedelta(hours=rng.uniform(10, hours)),
             ))
+
+    # Seed Food Division ProductSKUs, SKU Recipes, Production Batches, and Packaging PdM Machines
+    from app.db.models import InspectionRecipe, Machine, ProductSKU, ProductionBatch, SensorReading
+    from app.vision.preprocessing import PreprocessingConfig
+    from app.vision.roi_pipeline import default_food_zones
+
+    if not db.query(InspectionRecipe).count() and cameras:
+        skus = [
+            ProductSKU(
+                org_id=org.id,
+                sku_code="BIS-COK-100G",
+                name="Biskuit Lapis Rasa Cokelat 100g",
+                category="bakery",
+                packaging_type="flow_wrap",
+                is_active=True,
+            ),
+            ProductSKU(
+                org_id=org.id,
+                sku_code="BIS-KEJ-100G",
+                name="Biskuit Lapis Rasa Keju 100g",
+                category="bakery",
+                packaging_type="flow_wrap",
+                is_active=True,
+            ),
+            ProductSKU(
+                org_id=org.id,
+                sku_code="DRY-UHT-250M",
+                name="Dairy UHT Pack 250ml",
+                category="dairy",
+                packaging_type="aseptic_carton",
+                is_active=True,
+            ),
+        ]
+        db.add_all(skus)
+        db.flush()
+
+        recipes = [
+            InspectionRecipe(
+                org_id=org.id,
+                sku_id=skus[0].id,
+                sku_code="BIS-COK-100G",
+                name="Biskuit Lapis Rasa Cokelat 100g (Flow-Wrap)",
+                description="Multi-Zone ROI: ROI 1 Seal PatchCore, ROI 2 Exp Date OCR, ROI 3 HSV Bake + Foreign Matter",
+                line_id=cameras[0].line_id,
+                camera_id=cameras[0].id,
+                model_version_id=det_model.id,
+                is_active=True,
+                pass_sample_rate=500,
+                preprocessing_config=PreprocessingConfig().to_dict(),
+                roi_zones=default_food_zones(),
+            ),
+            InspectionRecipe(
+                org_id=org.id,
+                sku_id=skus[1].id,
+                sku_code="BIS-KEJ-100G",
+                name="Biskuit Lapis Rasa Keju 100g (Flow-Wrap)",
+                description="Varian Keju 100g dengan ambang HSV warna panggangan keemasan",
+                line_id=cameras[0].line_id,
+                camera_id=cameras[0].id,
+                model_version_id=det_model.id,
+                is_active=False,
+                pass_sample_rate=500,
+                preprocessing_config=PreprocessingConfig(gamma=1.25, blur_threshold=85.0).to_dict(),
+                roi_zones=default_food_zones(),
+            ),
+            InspectionRecipe(
+                org_id=org.id,
+                sku_id=skus[2].id,
+                sku_code="DRY-UHT-250M",
+                name="Dairy UHT Pack 250ml (Top Seal & Foil Cap)",
+                description="Inspeksi kerapatan top-seal UHT & kode tanggal kedaluwarsa BPOM",
+                line_id=cameras[2].line_id if len(cameras) > 2 else cameras[0].line_id,
+                camera_id=cameras[2].id if len(cameras) > 2 else cameras[0].id,
+                model_version_id=anomaly_model.id,
+                is_active=True,
+                pass_sample_rate=500,
+                preprocessing_config=PreprocessingConfig(gamma=1.30, clahe_clip_limit=2.5).to_dict(),
+                roi_zones=default_food_zones(),
+            ),
+        ]
+        db.add_all(recipes)
+        db.flush()
+
+        db.add_all([
+            ProductionBatch(
+                org_id=org.id,
+                batch_code=f"LOT-{now:%Y%m%d}-A1",
+                sku_id=skus[0].id,
+                sku_code="BIS-COK-100G",
+                recipe_id=recipes[0].id,
+                line_id=cameras[0].line_id,
+                line_name="Line 01 — Biscuit Flow-Wrap",
+                shift="SHIFT_1",
+                status="ACTIVE",
+                target_quantity=5000,
+                total_inspected=int(counts["inspections"]),
+                total_pass=int(counts["inspections"] * 0.84),
+                total_fail=int(counts["inspections"] * 0.12),
+                total_review=int(counts["inspections"] * 0.04),
+                defect_counts_json={
+                    "seal_leak": max(2, int(counts["inspections"] * 0.05)),
+                    "missing_exp_date": max(1, int(counts["inspections"] * 0.03)),
+                    "foreign_matter": max(1, int(counts["inspections"] * 0.02)),
+                    "burnt": max(1, int(counts["inspections"] * 0.02)),
+                },
+                started_at=now - timedelta(hours=4),
+            ),
+            ProductionBatch(
+                org_id=org.id,
+                batch_code=f"LOT-{(now - timedelta(days=1)):%Y%m%d}-B2",
+                sku_id=skus[2].id,
+                sku_code="DRY-UHT-250M",
+                recipe_id=recipes[2].id,
+                line_id=cameras[2].line_id if len(cameras) > 2 else cameras[0].line_id,
+                line_name="Line 02 — Dairy Aseptic Packaging",
+                shift="SHIFT_2",
+                status="CLOSED",
+                target_quantity=4000,
+                total_inspected=4000,
+                total_pass=3942,
+                total_fail=48,
+                total_review=10,
+                defect_counts_json={"seal_leak": 24, "missing_exp_date": 14, "foreign_matter": 4, "burnt": 6},
+                qa_signature_hash=_sha256_fake(rng),
+                qa_signed_at=now - timedelta(hours=12),
+                qa_notes="Audit HACCP & BPOM Lulus — 100% bukti foto FAIL tersimpan di retensi 365 hari.",
+                started_at=now - timedelta(hours=20),
+                closed_at=now - timedelta(hours=12),
+            ),
+        ])
+
+    if not db.query(Machine).count() and cameras:
+        pkg_machine = Machine(
+            org_id=org.id,
+            name="Flow-Wrap Horizontal Heat Sealer L01",
+            code="FW-SEALER-L01",
+            machine_type="HEAT_SEALER",
+            camera_id=cameras[0].id,
+            status="running",
+            installed_at=now - timedelta(days=180),
+        )
+        oven_machine = Machine(
+            org_id=org.id,
+            name="Tunnel Baking Oven Zone-A L02",
+            code="OVEN-TUNNEL-L02",
+            machine_type="BAKING_OVEN",
+            camera_id=cameras[2].id if len(cameras) > 2 else cameras[0].id,
+            status="running",
+            installed_at=now - timedelta(days=240),
+        )
+        db.add_all([pkg_machine, oven_machine])
+        db.flush()
+        db.add_all([
+            SensorReading(
+                org_id=org.id,
+                machine_id=pkg_machine.id,
+                air_temperature_k=301.2,
+                process_temperature_k=308.4,
+                rotational_speed_rpm=1340.0,
+                torque_nm=44.5,
+                tool_wear_min=85.0,
+                sealer_temp_c=132.5,
+                pneumatic_pressure_bar=4.6,
+                zone_temp_c=28.0,
+                conveyor_speed_mpm=120.0,
+                motor_current_a=8.4,
+                vibration_mm_s=2.1,
+                ambient_humidity_pct=62.0,
+                recorded_at=now - timedelta(minutes=5),
+            ),
+            SensorReading(
+                org_id=org.id,
+                machine_id=oven_machine.id,
+                air_temperature_k=303.0,
+                process_temperature_k=314.2,
+                rotational_speed_rpm=1520.0,
+                torque_nm=38.0,
+                tool_wear_min=42.0,
+                sealer_temp_c=172.0,
+                pneumatic_pressure_bar=6.2,
+                zone_temp_c=195.0,
+                conveyor_speed_mpm=115.0,
+                motor_current_a=7.9,
+                vibration_mm_s=1.8,
+                ambient_humidity_pct=55.0,
+                recorded_at=now - timedelta(minutes=3),
+            ),
+        ])
+
+    try:
+        from app.rag.food_sop_seed import seed_food_safety_sops
+
+        seed_food_safety_sops(db, org_id=org.id)
+    except Exception:
+        pass
+
     db.commit()
     return counts
 
 
 def reset_database(db: Session, storage: EvidenceStorage | None = None) -> None:
     """Delete every row and all stored evidence images. Demo/dev use only."""
+    from app.db.models import (
+        AgentApproval,
+        AgentRun,
+        AgentToolLog,
+        InspectionRecipe,
+        Machine,
+        MaintenanceRequest,
+        MaintenanceSchedule,
+        OTTriggerEvent,
+        ProductSKU,
+        ProductionBatch,
+        RagChunk,
+        RagDocument,
+        SensorReading,
+    )
+
     storage = storage or EvidenceStorage()
     for model in (
+        OTTriggerEvent, ProductionBatch, InspectionRecipe, ProductSKU,
+        AgentToolLog, AgentRun, AgentApproval,
+        RagChunk, RagDocument,
+        MaintenanceSchedule, MaintenanceRequest, SensorReading, Machine,
         AuditLog, SystemEvent, AnomalyResult, DetectionResult, Inspection,
         InspectionSession, ModelEvaluation, ModelVersion, Camera, ProductionLine,
         User, Role,

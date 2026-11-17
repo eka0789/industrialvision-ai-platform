@@ -228,6 +228,18 @@ const main = async () => {
     await page.waitForTimeout(900)
   })
 
+  // 16. Food Division — SKU Recipes & Multi-Zone ROI Editor.
+  await shot('16-recipes', async () => {
+    await page.goto(`${APP}/recipes`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(900)
+  })
+
+  // 17. Food Division — Production Batch & HACCP Traceability.
+  await shot('17-batches', async () => {
+    await page.goto(`${APP}/batches`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(900)
+  })
+
   // 15. Mobile overview (390px responsiveness proof).
   await page.setViewportSize({ width: 390, height: 844 })
   await shot('15-mobile-overview', async () => {

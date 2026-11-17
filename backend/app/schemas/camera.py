@@ -18,6 +18,23 @@ def _reject_embedded_rtsp_credentials(value: str | None) -> str | None:
     return value
 
 
+def sanitize_ot_host(value: str | None) -> str | None:
+    """Redact any embedded username/password in an MQTT or OT broker URL/host string."""
+    if not value:
+        return value
+    if "://" in value:
+        parsed = urlsplit(value)
+        if parsed.username or parsed.password:
+            host = parsed.hostname or ""
+            if parsed.port:
+                host = f"{host}:{parsed.port}"
+            return parsed._replace(netloc=f"[REDACTED]@{host}").geturl()
+    if "@" in value:
+        _, host_part = value.rsplit("@", 1)
+        return f"[REDACTED]@{host_part}"
+    return value
+
+
 class CameraListOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,6 +47,17 @@ class CameraListOut(BaseModel):
     resolution: str | None = None
     fps_input: float | None = None
     last_inspection_at: datetime | None = None
+    ot_protocol: str = "simulated"
+    ot_host: str | None = None
+    ot_port: int | None = 502
+    trigger_register: int | None = 1
+    reject_coil: int | None = 100
+    reject_delay_ms: int = 120
+    reject_pulse_ms: int = 45
+
+    @field_serializer("ot_host")
+    def redact_ot_host(self, value: str | None) -> str | None:
+        return sanitize_ot_host(value)
 
 
 class CameraCreate(BaseModel):
@@ -41,6 +69,13 @@ class CameraCreate(BaseModel):
     resolution: str | None = Field(default=None, max_length=40)
     fps_input: float | None = Field(default=None, gt=0, le=240)
     is_active: bool = True
+    ot_protocol: str = Field(default="simulated", max_length=30)
+    ot_host: str | None = Field(default=None, max_length=255)
+    ot_port: int | None = Field(default=502, ge=1, le=65535)
+    trigger_register: int | None = Field(default=1, ge=0, le=65535)
+    reject_coil: int | None = Field(default=100, ge=0, le=65535)
+    reject_delay_ms: int = Field(default=120, ge=0, le=10000)
+    reject_pulse_ms: int = Field(default=45, ge=5, le=5000)
 
     @field_validator("source_url")
     @classmethod
@@ -56,6 +91,13 @@ class CameraUpdate(BaseModel):
     resolution: str | None = Field(default=None, max_length=40)
     fps_input: float | None = Field(default=None, gt=0, le=240)
     is_active: bool | None = None
+    ot_protocol: str | None = Field(default=None, max_length=30)
+    ot_host: str | None = Field(default=None, max_length=255)
+    ot_port: int | None = Field(default=None, ge=1, le=65535)
+    trigger_register: int | None = Field(default=None, ge=0, le=65535)
+    reject_coil: int | None = Field(default=None, ge=0, le=65535)
+    reject_delay_ms: int | None = Field(default=None, ge=0, le=10000)
+    reject_pulse_ms: int | None = Field(default=None, ge=5, le=5000)
 
     @field_validator("source_url")
     @classmethod

@@ -66,3 +66,89 @@ class EvidenceStorage:
         except OSError:
             pass
         return True
+
+    @staticmethod
+    def should_save_evidence(decision: str, sequence_num: int = 1, pass_sample_rate: int = 500) -> bool:
+        """Smart Evidence Retention policy for high-speed food packaging lines (120+ ppm).
+
+        - FAIL, REVIEW, ERROR: 100% full-resolution retention for HACCP/BPOM audit.
+        - PASS: sampled at 1 in ``pass_sample_rate`` products (item #1, #501, #1001...).
+        """
+        if decision.upper() != "PASS":
+            return True
+        rate = max(1, int(pass_sample_rate))
+        if rate <= 1:
+            return True
+        return ((max(1, int(sequence_num)) - 1) % rate) == 0
+
+
+def prune_expired_evidence(
+    db,
+    storage: EvidenceStorage | None = None,
+    *,
+    pass_retention_days: int | None = None,
+    audit_retention_days: int | None = None,
+) -> dict[str, int]:
+    """Enforce tiered evidence retention on disk:
+    - PASS photos deleted after ``pass_retention_days`` (default 7 days).
+    - FAIL/REVIEW/ERROR audit photos retained for ``audit_retention_days`` (default 730 days / 2 years).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.db.models import Inspection
+
+    store = storage or EvidenceStorage()
+    pass_days = pass_retention_days if pass_retention_days is not None else settings.EVIDENCE_PASS_RETENTION_DAYS
+    audit_days = audit_retention_days if audit_retention_days is not None else settings.EVIDENCE_AUDIT_RETENTION_DAYS
+
+    now = datetime.now(timezone.utc)
+    pass_cutoff = now - timedelta(days=pass_days)
+    audit_cutoff = now - timedelta(days=audit_days)
+
+    pass_rows = (
+        db.query(Inspection)
+        .filter(
+            Inspection.decision == "PASS",
+            Inspection.evidence_path.isnot(None),
+            Inspection.created_at < pass_cutoff,
+        )
+        .all()
+    )
+    audit_rows = (
+        db.query(Inspection)
+        .filter(
+            Inspection.decision.in_(["FAIL", "REVIEW", "ERROR"]),
+            Inspection.evidence_path.isnot(None),
+            Inspection.created_at < audit_cutoff,
+        )
+        .all()
+    )
+
+    pruned_pass = 0
+    for row in pass_rows:
+        if row.evidence_path:
+            try:
+                store.delete(row.evidence_path)
+            except ValueError:
+                pass
+            row.evidence_path = None
+            pruned_pass += 1
+
+    pruned_audit = 0
+    for row in audit_rows:
+        if row.evidence_path:
+            try:
+                store.delete(row.evidence_path)
+            except ValueError:
+                pass
+            row.evidence_path = None
+            pruned_audit += 1
+
+    if pruned_pass or pruned_audit:
+        db.commit()
+    return {
+        "pruned_pass": pruned_pass,
+        "pruned_audit": pruned_audit,
+        "pass_retention_days": int(pass_days),
+        "audit_retention_days": int(audit_days),
+    }

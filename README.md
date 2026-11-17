@@ -113,9 +113,39 @@ simulator explicitly labeled as educational:
 |---|---|
 | ![Admin](docs/screenshots/14-admin.png) | ![Mobile overview](docs/screenshots/15-mobile-overview.png) |
 
+### Food Manufacturing Division (Fase 1–6: SKU Recipes, Multi-Zone ROI, & HACCP Traceability)
+
+Interactive SVG Multi-Zone ROI Recipe Editor (Heat-Seal Anomaly, Expiry Date OCR, Foreign Matter Detection) and Food Safety & HACCP Lot Traceability with First Pass Yield (FPY) and PDF/CSV Audit Reports:
+
+| SKU Recipes & Multi-Zone ROI Editor | Production Batch & HACCP Traceability |
+|---|---|
+| ![SKU Recipes & Multi-Zone ROI Editor](docs/screenshots/16-recipes.png) | ![Production Batch & HACCP Traceability](docs/screenshots/17-batches.png) |
+
+---
+
+## Demo Login & Passwords (Seeded Accounts)
+
+Run `python -m app.seed` from `backend/` to provision the following role-based demo accounts:
+
+| Role | Username | Password | Permissions & Responsibilities |
+|---|---|---|---|
+| **Owner (QA Manager)** | `owner` | `Owner!Vision2026` | Full organization access, HITL Batch Hold & Maintenance approvals, QA batch sign-off |
+| **Admin** | `admin` | `Admin!Vision2026` | User & station administration, PLC/OT I/O configuration, HITL approvals |
+| **AI Engineer** | `aiengineer` | `Engineer!2026` | Model Registry, SKU Recipe & Multi-Zone ROI configuration, Threshold Adjustment approvals |
+| **Line Operator** | `operator1` | `Operator!2026` | Start/Pause/Close Production Batches, SKU Changeover, OT Trigger & AI Incident Triage |
+| **Auditor / Viewer** | `viewer` | `Viewer!Vision2026` | Read-only access to dashboards, inspections, PDF/CSV HACCP audit reports, and RAG SOPs |
+
 ---
 
 ## Core Features
+
+- **Food Manufacturing Division Suite (Fase 1–6):**
+  - **Fase 1 — SKU Recipe & Multi-Zone ROI Inspection:** Multi-tenant `ProductSKU` and `InspectionRecipe` management with atomic 1-active-recipe-per-camera changeover, interactive SVG Multi-Zone ROI editor (`object_detection`, `anomaly_segmentation`, `ocr_expiry`), and expiry date OCR validation (`MISSING_EXP_DATE`).
+  - **Fase 2 — Food Safety & HACCP Traceability:** `ProductionBatch` lifecycle (`ACTIVE`, `PAUSED`, `CLOSED`, `HOLD`), atomic real-time First Pass Yield (FPY) counters, Smart Evidence Retention (`100%` FAIL/REVIEW with 365-day anti-delete audit lock; `1-in-N` PASS sampling), and one-click PDF/CSV Batch Audit Reports (ISO 22000 / FSSC 22000 / BPOM).
+  - **Fase 3 — Food-Grade Image Preprocessing & Lens Fog Guard:** Deterministic LAB-channel CLAHE glare suppression for metallic/plastic packaging, Gray-World white balance & Gamma normalization, HSV bake-color masking, and fast (< 5 ms) Laplacian Variance lens blur/fog & illumination guard (`LENS_BLUR_OR_FOG` -> `DEGRADED`, blocking false `PASS`).
+  - **Fase 4 — Industrial OT Bridge & Real-Time Rejector Adapter:** `SimulatedOTAdapter`, `ModbusTCPAdapter`, and `MQTTIndustrialAdapter` (`factory/{org_id}/{line_id}/trigger` & `.../reject`), `AsyncOTConveyorWorker` with trigger deduplication, `reject_delay_ms` conveyor timing, `trigger_to_reject_ms` telemetry, and fail-safe PLC handling.
+  - **Fase 5 — Food Processing & Packaging Equipment PdM & Vision-PdM Correlation:** Supports `HEAT_SEALER`, `FLOW_WRAPPER`, `CONVEYOR_DRIVE`, `BAKING_OVEN`, and `CHILLER_TUNNEL` telemetry (`sealer_temp_c`, `pneumatic_pressure_bar`, `conveyor_speed_mpm`, `motor_current_amp`, `vibration_mm_s`, `ambient_humidity_pct`) and automatic cross-correlation between `SEAL_DEFECT` spikes and sealer temperature/pressure drops.
+  - **Fase 6 — AI QA/QC Assistant (Food Safety RAG & Bounded Agent Tools):** Bundled bilingual HACCP SOPs (`SOP-QA-01`, `SOP-QA-02`, `SOP-SAN-03`, `SOP-FOD-04`) with 1:1 citation enforcement, bounded tools (`get_line_quality_summary`, `draft_batch_hold_notice`, `propose_recipe_threshold_adjustment`) with strict RBAC and HITL approval, plus Proactive Incident Triage.
 
 - **Industrial Operator Console (Anti-AI Slop UI):**
   A strong, industrial interface using a graphite palette (`#1c211b`), warm off-white (`#f3f4ed`), and signal lime (`#d6f779`). Includes locally bundled typography (*Space Grotesk*, *Manrope*, *IBM Plex Mono*) and a clear operational layout designed for production environments.

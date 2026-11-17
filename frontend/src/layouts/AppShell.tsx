@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Activity, BookOpen, Bot, Boxes, ChevronRight, CircleGauge, Cctv, FlaskConical, History, LogOut, Menu, Plus, Users, Wrench, X } from 'lucide-react'
+import { Activity, BookOpen, Bot, Boxes, ChevronRight, CircleGauge, Cctv, FileCheck2, FlaskConical, History, Layers, LogOut, Menu, Plus, Users, Wrench, X } from 'lucide-react'
 import { systemApi } from '../api'
 import { Brand } from '../components/Brand'
 import { useApi } from '../hooks/useApi'
@@ -13,12 +13,14 @@ const navigation = [
   { to: '/inspections/new', label: 'Inspeksi baru', index: '02', icon: Plus },
   { to: '/inspections', label: 'Riwayat inspeksi', index: '03', icon: History, end: true },
   { to: '/cameras', label: 'Stasiun & kamera', index: '04', icon: Cctv },
-  { to: '/models', label: 'Registry model', index: '05', icon: Boxes },
-  { to: '/maintenance', label: 'Perawatan prediktif', index: '06', icon: Wrench },
-  { to: '/knowledge', label: 'Knowledge AI', index: '07', icon: BookOpen },
-  { to: '/agent', label: 'Operations Agent', index: '08', icon: Bot },
-  { to: '/monitoring', label: 'Monitoring', index: '09', icon: Activity },
-  { to: '/lab', label: 'ML Lab', index: '10', icon: FlaskConical },
+  { to: '/recipes', label: 'SKU & Multi-Zone ROI', index: '05', icon: Layers },
+  { to: '/batches', label: 'Batch & Audit Reports', index: '06', icon: FileCheck2 },
+  { to: '/models', label: 'Registry model', index: '07', icon: Boxes },
+  { to: '/maintenance', label: 'Perawatan prediktif', index: '08', icon: Wrench },
+  { to: '/knowledge', label: 'Knowledge AI', index: '09', icon: BookOpen },
+  { to: '/agent', label: 'Operations Agent', index: '10', icon: Bot },
+  { to: '/monitoring', label: 'Monitoring', index: '11', icon: Activity },
+  { to: '/lab', label: 'ML Lab', index: '12', icon: FlaskConical },
 ]
 
 export default function AppShell() {

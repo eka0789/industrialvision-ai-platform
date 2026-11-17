@@ -43,6 +43,13 @@ export interface Camera {
   last_inspection_at: string | null
   last_error?: string | null
   is_active?: boolean
+  ot_protocol?: 'simulated' | 'modbus_tcp' | 'mqtt' | string
+  ot_host?: string | null
+  ot_port?: number | null
+  trigger_register?: number | null
+  reject_coil?: number | null
+  reject_delay_ms?: number
+  reject_pulse_ms?: number
 }
 
 export interface CameraInput {
@@ -53,6 +60,13 @@ export interface CameraInput {
   resolution?: string | null
   fps_input?: number | null
   is_active?: boolean
+  ot_protocol?: string
+  ot_host?: string | null
+  ot_port?: number | null
+  trigger_register?: number | null
+  reject_coil?: number | null
+  reject_delay_ms?: number
+  reject_pulse_ms?: number
 }
 
 export interface ModelVersion {
@@ -174,6 +188,27 @@ export interface PdmPrediction {
   failure_modes: string[]
   recommendation: string
   reading_id?: number | null
+  food_features?: {
+    sealer_temp_c?: number | null
+    pneumatic_pressure_bar?: number | null
+    zone_temp_c?: number | null
+    conveyor_speed_mpm?: number | null
+    motor_current_a?: number | null
+    motor_current_amp?: number | null
+    vibration_mm_s?: number | null
+    ambient_humidity_pct?: number | null
+  } | null
+  vision_correlation?: {
+    correlated: boolean
+    camera_id: number | null
+    recent_fail_count: number
+    seal_leak_count: number
+    seal_defect_count?: number
+    sealer_temp_c?: number | null
+    pneumatic_pressure_bar?: number | null
+    maintenance_request_id?: number | null
+    diagnosis: string | null
+  } | null
 }
 
 export interface MaintenanceRequest {
@@ -285,4 +320,203 @@ export interface TrainingRunInfo {
   completed_at: string | null
   run_dir: string
   checkpoints: CheckpointInfo[]
+}
+
+// ── Food Division Enhancements (Priorities 1-3) ─────────────────────────────
+
+export interface ProductSKU {
+  id: number
+  org_id: number
+  sku_code: string
+  name: string
+  category: string
+  packaging_type: string
+  expiry_format?: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface ROIZoneSpec {
+  zone_id: string
+  zone_name: string
+  name?: string
+  x: number
+  y: number
+  width: number
+  height: number
+  bbox: number[]
+  task_type: 'object_detection' | 'anomaly_segmentation' | 'ocr_expiry'
+  zone_type?: 'seal_integrity' | 'expiry_code' | 'product_quality'
+  model_id?: number | null
+  confidence_threshold: number
+  defect_category: 'SEAL_DEFECT' | 'MISSING_EXP_DATE' | 'BURNT_OR_BROKEN' | 'FOREIGN_MATTER' | string
+  enabled: boolean
+  anomaly_threshold?: number
+  ocr_required?: boolean
+  ocr_regex?: string
+  min_ocr_confidence?: number
+  max_burnt_ratio?: number
+  burnt_v_max?: number
+  detection_confidence?: number
+  reject_labels?: string[]
+}
+
+export interface InspectionRecipe {
+  id: number
+  org_id: number
+  sku_id: number | null
+  sku_code: string | null
+  name: string
+  description: string | null
+  line_id: number | null
+  camera_id: number | null
+  model_version_id: number | null
+  is_active: boolean
+  pass_sample_rate: number
+  preprocessing_config: {
+    enabled?: boolean
+    clahe_enabled: boolean
+    clahe_clip_limit: number
+    clahe_tile_size?: number
+    white_balance_enabled?: boolean
+    gamma: number
+    blur_detection_enabled?: boolean
+    blur_threshold: number
+    illumination_guard_enabled?: boolean
+    min_luminance?: number
+    max_luminance?: number
+    hsv_mask_enabled?: boolean
+    hsv_lower?: number[]
+    hsv_upper?: number[]
+  }
+  preprocessing_json: {
+    enabled: boolean
+    clahe_enabled: boolean
+    clahe_clip_limit: number
+    clahe_tile_size: number
+    gamma: number
+    blur_detection_enabled: boolean
+    blur_threshold: number
+  }
+  roi_zones: ROIZoneSpec[]
+  zones_json: ROIZoneSpec[]
+  created_at: string
+}
+
+export interface ProductionBatch {
+  id: number
+  org_id: number
+  organization_name?: string
+  batch_code: string
+  sku_id?: number | null
+  sku_code: string
+  sku_name?: string | null
+  recipe_id: number | null
+  line_id: number | null
+  line_name?: string | null
+  shift: string
+  started_by?: number | null
+  operator_id: number | null
+  operator_username?: string | null
+  status: 'ACTIVE' | 'PAUSED' | 'CLOSED' | 'active' | 'completed' | 'quarantined' | string
+  target_quantity: number
+  target_qty: number
+  total_inspected: number
+  total_pass: number
+  total_fail: number
+  total_review: number
+  first_pass_yield_pct: number
+  yield_pct: number
+  reject_rate_pct: number
+  defect_counts: Record<string, number>
+  qa_signed_by_user_id: number | null
+  qa_signed_by_username: string | null
+  qa_signature_hash: string | null
+  qa_signed_at: string | null
+  qa_notes: string | null
+  started_at: string | null
+  closed_at?: string | null
+  ended_at: string | null
+}
+
+export interface OTTriggerResult {
+  trigger_event_id: number
+  inspection_id: number
+  camera_id: number
+  camera_status: string
+  batch_code: string | null
+  sku_code: string | null
+  decision: Decision
+  reason: string
+  defect_categories: string[]
+  zones: Record<string, unknown>[]
+  preprocessing: {
+    laplacian_variance: number
+    sharpness_score?: number
+    blur_threshold: number
+    mean_luminance?: number
+    std_luminance?: number
+    lighting_ok?: boolean
+    quality_status?: string
+    is_blurred: boolean
+    status: string
+    clahe_applied: boolean
+    white_balance_applied?: boolean
+    gamma: number
+    hsv_mask_enabled?: boolean
+    hsv_in_range_ratio?: number | null
+  }
+  rejector: {
+    actuated: boolean
+    protocol: string
+    actuator_type: string
+    plc_target: string
+    pulse_ms: number
+    transport_status: string
+  }
+  evidence_saved: boolean
+  inference_latency_ms: number
+  total_cycle_ms: number
+  trigger_to_reject_ms?: number
+  within_30ms_target: boolean
+}
+
+export interface OTBridgeStatus {
+  default_protocol: string
+  supported_protocols: string[]
+  supported_actuators: string[]
+  plc_endpoint: string
+  reject_pulse_ms: number
+  target_inference_ms: number
+  total_triggers: number
+  total_rejector_actuations: number
+  avg_inference_latency_ms: number | null
+  avg_total_cycle_ms: number | null
+  avg_trigger_to_reject_ms: number | null
+  max_trigger_to_reject_ms: number | null
+}
+
+export interface DefectSpikeEvaluation {
+  status: string
+  spike_detected: boolean
+  defect_category: string
+  window_minutes: number
+  matched_fail_count: number
+  total_fail_in_window: number
+  spike_threshold: number
+  sop_citations: { citation: string; chunk_id: number; document_id: number; snippet: string }[]
+  pdm_correlation: Record<string, unknown> | null
+  approval_id: number | null
+  recommended_action: string
+}
+
+export interface IncidentTriageResult {
+  status: string
+  incident_type: 'FOREIGN_MATTER' | 'LENS_BLUR_OR_FOG' | 'PSI_DRIFT' | 'MISSING_EXP_DATE' | 'SEAL_DEFECT' | string
+  sop_answer: string
+  sop_provider: string
+  sop_citations: RagCitation[]
+  line_quality_summary: Record<string, unknown>
+  mitigation_action: Record<string, unknown> | null
+  approval_id: number | null
 }

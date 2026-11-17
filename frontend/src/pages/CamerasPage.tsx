@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowRight, Cctv, History, Pencil, Plus, Power, Search, Unplug } from 'lucide-react'
+import { ArrowRight, Cctv, History, Layers, Pencil, Plus, Power, Search, Unplug, Zap } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { cameraApi } from '../api'
+import { cameraApi, otApi, recipeApi } from '../api'
 import { Button, EmptyState, ErrorState, LoadingBlock, Modal, PageHeader, StatusBadge } from '../components/Ui'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
 import { useLiveFeed } from '../hooks/useLiveFeed'
 import { useToast } from '../hooks/useToast'
-import type { Camera as CameraType, CameraInput } from '../types'
+import type { Camera as CameraType, CameraInput, OTTriggerResult } from '../types'
 import { cameraCode, formatDate, sourceLabels } from '../utils/format'
 import { errorMessage } from '../utils/errors'
 
@@ -70,19 +70,46 @@ export default function CamerasPage() {
         </div>
       )}
       <p className="page-footnote"><span>*</span> Status stasiun diperbarui otomatis setiap ada inspeksi baru masuk. Pratinjau streaming video langsung belum tersedia di antarmuka ini.</p>
-      {selectedId && <CameraDetailModal id={selectedId} onClose={closeDetail} onChanged={resource.reload} onEdit={(camera) => { closeDetail(); setFormCamera(camera) }} canAdmin={canAdmin} canOperate={user?.role !== 'ai_engineer'} />}
+      {selectedId && <CameraDetailModal id={selectedId} onClose={closeDetail} onChanged={resource.reload} onEdit={(camera) => { closeDetail(); setFormCamera(camera) }} canAdmin={canAdmin} canConfigureOt={user?.role === 'owner' || user?.role === 'admin' || user?.role === 'ai_engineer'} canOperate={user?.role !== 'ai_engineer'} />}
       {formCamera !== undefined && <CameraFormModal camera={formCamera} onClose={() => setFormCamera(undefined)} onSaved={() => { setFormCamera(undefined); resource.reload(); toast(formCamera ? 'Perubahan stasiun disimpan.' : 'Stasiun baru berhasil ditambahkan.') }} />}
     </div>
   )
 }
 
-function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canOperate }: {
-  id: number; onClose: () => void; onChanged: () => void; onEdit: (camera: CameraType) => void; canAdmin: boolean; canOperate: boolean
+function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canConfigureOt, canOperate }: {
+  id: number; onClose: () => void; onChanged: () => void; onEdit: (camera: CameraType) => void; canAdmin: boolean; canConfigureOt: boolean; canOperate: boolean
 }) {
   const resource = useApi(() => cameraApi.get(id), [id])
+  const recipes = useApi(() => recipeApi.list(), [id])
   const toast = useToast()
   const [changing, setChanging] = useState(false)
+  const [triggering, setTriggering] = useState(false)
+  const [otResult, setOtResult] = useState<OTTriggerResult | null>(null)
+  const [newSku, setNewSku] = useState('')
+  const [newSkuName, setNewSkuName] = useState('')
+  const [otProto, setOtProto] = useState('simulated')
+  const [otHost, setOtHost] = useState('127.0.0.1')
+  const [otPort, setOtPort] = useState(502)
+  const [trigReg, setTrigReg] = useState(1)
+  const [rejCoil, setRejCoil] = useState(100)
+  const [rejDelay, setRejDelay] = useState(120)
+  const [rejPulse, setRejPulse] = useState(45)
+  const [savingOt, setSavingOt] = useState(false)
+  const [testingPulse, setTestingPulse] = useState(false)
   const camera = resource.data
+  const activeRecipe = (recipes.data ?? []).find((r) => r.is_active && (r.camera_id === id || !r.camera_id))
+
+  useEffect(() => {
+    if (!camera) return
+    setOtProto(camera.ot_protocol ?? 'simulated')
+    setOtHost(camera.ot_host ?? '127.0.0.1')
+    setOtPort(camera.ot_port ?? 502)
+    setTrigReg(camera.trigger_register ?? 1)
+    setRejCoil(camera.reject_coil ?? 100)
+    setRejDelay(camera.reject_delay_ms ?? 120)
+    setRejPulse(camera.reject_pulse_ms ?? 45)
+  }, [camera])
+
   const lifecycle = async () => {
     if (!camera) return
     setChanging(true)
@@ -94,6 +121,67 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canOperat
     } catch (reason) { toast(errorMessage(reason), 'warning') }
     finally { setChanging(false) }
   }
+
+  const switchRecipe = async (skuCode: string) => {
+    try {
+      await recipeApi.changeover(skuCode, id)
+      recipes.reload()
+      toast(`Changeover SKU berhasil ke ${skuCode}.`)
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    }
+  }
+
+  const createQuickRecipe = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!newSku.trim() || !newSkuName.trim()) return
+    try {
+      await recipeApi.create({
+        sku_code: newSku.trim().toUpperCase(),
+        name: newSkuName.trim(),
+        camera_id: id,
+        is_active: true,
+        pass_sample_rate: 500,
+      })
+      setNewSku('')
+      setNewSkuName('')
+      recipes.reload()
+      toast('SKU Recipe Multi-Zone ROI ditambahkan & diaktifkan.')
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    }
+  }
+
+  const runOtTrigger = async (
+    defect: 'seal_leak' | 'missing_exp_date' | 'foreign_matter' | 'burnt' | null = null,
+    blur = false,
+  ) => {
+    setTriggering(true)
+    try {
+      const res = await otApi.trigger(id, {
+        protocol: 'modbus_tcp',
+        actuator_type: 'pneumatic_air_blast',
+        simulate_defect: defect,
+        simulate_blur: blur,
+      })
+      setOtResult(res)
+      resource.reload()
+      onChanged()
+      toast(
+        res.preprocessing.is_blurred
+          ? 'BLUR_ALERT: Lensa berembun terdeteksi — stasiun DEGRADED!'
+          : res.rejector.actuated
+            ? `FAIL (${res.defect_categories.join(', ')}) — Sinyal PLC Air-Blast Rejector dikirim (${res.inference_latency_ms} ms)`
+            : `PASS — Semua 3 Zona ROI lulus (${res.inference_latency_ms} ms)`,
+        res.decision === 'PASS' ? 'info' : 'warning',
+      )
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    } finally {
+      setTriggering(false)
+    }
+  }
+
   return (
     <Modal title={camera?.name ?? 'Detail stasiun'} eyebrow={`STATION / ${cameraCode(id)}`} onClose={onClose}>
       {resource.isLoading && <LoadingBlock />}
@@ -102,6 +190,222 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canOperat
         <div className="detail-status-row"><StatusBadge value={camera.status} /><StatusBadge value={camera.is_active ? 'active' : 'inactive'} /></div>
         {camera.last_error && <div className="inline-notice inline-notice--error">{camera.last_error}</div>}
         <dl className="data-list data-list--stacked"><div><dt>Kode stasiun</dt><dd>{cameraCode(camera.id)}</dd></div><div><dt>Identitas</dt><dd>{camera.camera_identity ?? '—'}</dd></div><div><dt>Jenis sumber</dt><dd>{sourceLabels[camera.source_type] ?? camera.source_type}</dd></div><div><dt>Lokasi sumber</dt><dd className="break-text">{camera.source_url ?? 'Unggah melalui browser'}</dd></div><div><dt>Resolusi / FPS</dt><dd>{camera.resolution ?? '—'} / {camera.fps_input ?? '—'}</dd></div><div><dt>Inspeksi terakhir</dt><dd>{formatDate(camera.last_inspection_at)}</dd></div></dl>
+
+        <section className="panel" style={{ marginTop: '1rem', padding: '0.85rem' }}>
+          <p className="eyebrow"><Layers size={14} /> FOOD DIVISION / SKU RECIPE & MULTI-ZONE ROI</p>
+          <p style={{ fontSize: '0.85rem', margin: '0.35rem 0' }}>
+            SKU Aktif: <strong>{activeRecipe ? `${activeRecipe.sku_code} — ${activeRecipe.name}` : 'Standar Multi-Zone (Default)'}</strong>
+            {' · '}Preprocessing: <code>CLAHE + Gamma {activeRecipe?.preprocessing_json.gamma ?? 1.2} + Blur Check (Laplacian &ge; {activeRecipe?.preprocessing_json.blur_threshold ?? 80})</code>
+          </p>
+          <ul style={{ fontSize: '0.8rem', margin: '0.4rem 0', paddingLeft: '1.1rem' }}>
+            {(activeRecipe?.zones_json ?? []).map((zone) => (
+              <li key={zone.zone_id}>
+                <strong>{zone.name}</strong> ({zone.zone_type}) — BBox: <code>[{zone.bbox.join(', ')}]</code>
+              </li>
+            ))}
+          </ul>
+          {!!(recipes.data ?? []).length && (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              {(recipes.data ?? []).map((r) => (
+                <Button
+                  key={r.id}
+                  variant={r.id === activeRecipe?.id ? 'primary' : 'secondary'}
+                  onClick={() => switchRecipe(r.sku_code)}
+                >
+                  Changeover: {r.sku_code}
+                </Button>
+              ))}
+            </div>
+          )}
+          <form onSubmit={createQuickRecipe} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+            <input
+              value={newSku}
+              onChange={(e) => setNewSku(e.target.value)}
+              placeholder="Kode SKU baru (mis. BIS-STR-100G)"
+              aria-label="Kode SKU baru"
+              style={{ flex: '1 1 140px' }}
+            />
+            <input
+              value={newSkuName}
+              onChange={(e) => setNewSkuName(e.target.value)}
+              placeholder="Nama Varian Produk"
+              aria-label="Nama Varian Produk"
+              style={{ flex: '1 1 160px' }}
+            />
+            <Button type="submit" variant="secondary"><Plus size={14} />Tambah SKU</Button>
+          </form>
+        </section>
+
+        <section className="panel" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
+          <p className="eyebrow"><Zap size={14} /> OT BRIDGE / PHOTOELECTRIC SENSOR & PLC REJECTOR</p>
+          <p style={{ fontSize: '0.8rem', margin: '0.35rem 0' }}>
+            Simulasikan sinyal sensor fotolistrik konveyor (&le; 30 ms ONNX) dan aktuator penendang produk cacat (Modbus TCP / MQTT).
+          </p>
+          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+            <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger(null, false)}>
+              Trigger PASS
+            </Button>
+            <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger('seal_leak', false)}>
+              Trigger FAIL (Seal Leak)
+            </Button>
+            <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger('missing_exp_date', false)}>
+              Trigger FAIL (No Exp Date)
+            </Button>
+            <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger(null, true)}>
+              Simulasi Uap/Washdown (BLUR_ALERT)
+            </Button>
+          </div>
+          {otResult && (
+            <div style={{ marginTop: '0.6rem', fontSize: '0.8rem' }}>
+              <strong>Hasil Siklus OT #{otResult.trigger_event_id}:</strong> Keputusan <code>{otResult.decision}</code> ({otResult.inference_latency_ms} ms) ·
+              Quality Guard: <code>{otResult.preprocessing.quality_status ?? otResult.preprocessing.status}</code> ·
+              Laplacian Sharpness: <code>{otResult.preprocessing.sharpness_score ?? otResult.preprocessing.laplacian_variance}</code> (Ambang &ge; {otResult.preprocessing.blur_threshold}) ·
+              Luminance (Mean/Std): <code>{otResult.preprocessing.mean_luminance ?? '—'} / {otResult.preprocessing.std_luminance ?? '—'}</code> ({otResult.preprocessing.lighting_ok !== false ? 'LAMPU NORMAL' : 'LIGHTING FAILURE'}) ·
+              PLC Rejector ({otResult.rejector.actuator_type}): <strong>{otResult.rejector.actuated ? `AKTIF (${otResult.rejector.plc_target})` : 'IDLE'}</strong>
+            </div>
+          )}
+        </section>
+
+        <section className="panel" aria-label="Image Conditioning and Lens Health" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
+          <p className="eyebrow">IMAGE CONDITIONING & LENS HEALTH GUARD</p>
+          <dl className="data-list data-list--stacked" style={{ marginTop: '0.35rem' }}>
+            <div>
+              <dt>Ketajaman Lensa (Laplacian)</dt>
+              <dd>{otResult ? `${otResult.preprocessing.sharpness_score ?? otResult.preprocessing.laplacian_variance} (min ${otResult.preprocessing.blur_threshold})` : `Ambang aktif: ≥ ${activeRecipe?.preprocessing_config?.blur_threshold ?? 80.0}`}</dd>
+            </div>
+            <div>
+              <dt>Status Pencahayaan & Kabut</dt>
+              <dd>{otResult ? `${otResult.preprocessing.quality_status ?? otResult.preprocessing.status} (Mean Y: ${otResult.preprocessing.mean_luminance ?? '—'})` : camera.status === 'degraded' ? 'DEGRADED — LENS_BLUR_OR_FOG' : 'NOMINAL (OK)'}</dd>
+            </div>
+            <div>
+              <dt>Conditioning Pipeline</dt>
+              <dd>CLAHE LAB + Gray-World White Balance + Gamma {activeRecipe?.preprocessing_config?.gamma ?? 1.2}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="panel" aria-label="PLC and Actuator IO" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
+          <p className="eyebrow"><Zap size={14} /> PLC & ACTUATOR I/O (MODBUS TCP / MQTT / REJECTOR)</p>
+          <div className="form-grid form-grid--two" style={{ marginTop: '0.5rem' }}>
+            <label className="field">
+              <span>Protokol OT</span>
+              <select value={otProto} disabled={!canConfigureOt} onChange={(e) => setOtProto(e.target.value)}>
+                <option value="simulated">SimulatedOTAdapter (Lokal / CI)</option>
+                <option value="modbus_tcp">ModbusTCPAdapter (Siemens S7 / Omron / Allen-Bradley)</option>
+                <option value="mqtt">MQTTIndustrialAdapter (factory/org/line/reject)</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Host PLC / MQTT Broker</span>
+              <input
+                value={otHost}
+                disabled={!canConfigureOt}
+                onChange={(e) => setOtHost(e.target.value)}
+                placeholder="192.168.10.50 atau mqtt://broker:1883"
+              />
+            </label>
+            <label className="field">
+              <span>Port & Trigger Register</span>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <input
+                  type="number"
+                  disabled={!canConfigureOt}
+                  value={otPort}
+                  onChange={(e) => setOtPort(Number(e.target.value))}
+                  aria-label="Port OT"
+                />
+                <input
+                  type="number"
+                  disabled={!canConfigureOt}
+                  value={trigReg}
+                  onChange={(e) => setTrigReg(Number(e.target.value))}
+                  aria-label="Trigger Register"
+                />
+              </div>
+            </label>
+            <label className="field">
+              <span>Reject Coil, Delay (ms) & Pulse (ms)</span>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <input
+                  type="number"
+                  disabled={!canConfigureOt}
+                  value={rejCoil}
+                  onChange={(e) => setRejCoil(Number(e.target.value))}
+                  aria-label="Reject Coil"
+                  title="Reject Coil Address"
+                />
+                <input
+                  type="number"
+                  disabled={!canConfigureOt}
+                  value={rejDelay}
+                  onChange={(e) => setRejDelay(Number(e.target.value))}
+                  aria-label="Reject Delay ms"
+                  title="Reject Delay ms (Travel time camera to nozzle)"
+                />
+                <input
+                  type="number"
+                  disabled={!canConfigureOt}
+                  value={rejPulse}
+                  onChange={(e) => setRejPulse(Number(e.target.value))}
+                  aria-label="Reject Pulse ms"
+                  title="Reject Pulse ms"
+                />
+              </div>
+            </label>
+          </div>
+          {canConfigureOt && (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
+              <Button
+                variant="secondary"
+                loading={savingOt}
+                onClick={async () => {
+                  setSavingOt(true)
+                  try {
+                    await otApi.updateConfig(id, {
+                      ot_protocol: otProto,
+                      ot_host: otHost,
+                      ot_port: Number(otPort),
+                      trigger_register: Number(trigReg),
+                      reject_coil: Number(rejCoil),
+                      reject_delay_ms: Number(rejDelay),
+                      reject_pulse_ms: Number(rejPulse),
+                    })
+                    resource.reload()
+                    toast('Konfigurasi PLC & Actuator I/O berhasil disimpan.')
+                  } catch (reason) {
+                    toast(errorMessage(reason), 'warning')
+                  } finally {
+                    setSavingOt(false)
+                  }
+                }}
+              >
+                Simpan Konfigurasi PLC
+              </Button>
+              <Button
+                variant="primary"
+                loading={testingPulse}
+                onClick={async () => {
+                  setTestingPulse(true)
+                  try {
+                    const res = await otApi.testPulse(id, {
+                      actuator_type: 'pneumatic_air_blast',
+                      reject_coil: Number(rejCoil),
+                      pulse_ms: Number(rejPulse),
+                    })
+                    toast(`Test Rejector Pulse berhasil dikirim ke ${res.rejector.plc_target} (${res.pulse_ms} ms) — tercatat di AuditLog.`)
+                  } catch (reason) {
+                    toast(errorMessage(reason), 'warning')
+                  } finally {
+                    setTestingPulse(false)
+                  }
+                }}
+              >
+                <Zap size={15} />Test Rejector Pulse
+              </Button>
+            </div>
+          )}
+        </section>
+
         <div className="modal-actions"><Link to="/inspections" className="button button--secondary"><History size={16} />Riwayat inspeksi</Link>{canOperate && camera.source_type !== 'upload' && <Button variant="secondary" loading={changing} onClick={lifecycle}>{camera.status === 'connected' ? <Unplug size={16} /> : <Power size={16} />}{camera.status === 'connected' ? 'Tandai terputus' : 'Tandai terhubung'}</Button>}{canAdmin && <Button onClick={() => onEdit(camera)}><Pencil size={16} />Edit stasiun</Button>}</div>
       </div>}
     </Modal>

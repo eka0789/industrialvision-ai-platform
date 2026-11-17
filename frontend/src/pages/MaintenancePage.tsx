@@ -23,6 +23,18 @@ const modeLabels: Record<string, string> = {
   error: 'Gagal — aman',
 }
 
+const machineTypeLabels: Record<string, string> = {
+  HEAT_SEALER: 'Heat Sealer Kemasan (HEAT_SEALER)',
+  FLOW_WRAPPER: 'Horizontal Flow Wrapper (FLOW_WRAPPER)',
+  CONVEYOR_DRIVE: 'Motor & Drive Konveyor (CONVEYOR_DRIVE)',
+  BAKING_OVEN: 'Oven Pemanggang (BAKING_OVEN)',
+  CHILLER_TUNNEL: 'Chiller / Cold Chain Tunnel (CHILLER_TUNNEL)',
+  food_packaging: 'Flow-Wrap / Heat Sealer Pangan',
+  baking_oven: 'Oven Pemanggang (Baking Oven)',
+  chiller: 'Chiller / Cold Chain',
+  conveyor: 'Conveyor Lini Kemasan',
+}
+
 function healthTone(health: number | null): string {
   if (health === null) return 'card-metric--muted'
   if (health >= 0.75) return 'card-metric--ok'
@@ -101,18 +113,63 @@ export default function MaintenancePage() {
                 <StatusBadge value={machine.status} />
               </div>
               <h2>{machine.name}</h2>
-              <p className="machine-type">{machine.machine_type}</p>
+              <p className="machine-type">{machineTypeLabels[machine.machine_type] ?? machine.machine_type}</p>
               <div className={`card-metric ${healthTone(null)}`} aria-live="polite">
                 <Activity size={18} />
                 <div>
-                  <strong>Belum diprediksi</strong>
-                  <span>Tekan "Prediksi" untuk menghitung kesehatan terkini.</span>
+                  <strong>Indikator Mesin Pangan (Sealer Temp, Air Pressure, Motor Load, Vibration)</strong>
+                  <span>Tekan "Prediksi" atau "Korelasi Vision ↔ PdM" untuk evaluasi real-time.</span>
                 </div>
               </div>
-              <footer className="machine-card-actions">
+              <footer className="machine-card-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <Button variant="secondary" loading={predictingId === machine.id} onClick={() => predict(machine)}>
                   Prediksi
                 </Button>
+                {canWrite && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        try {
+                          await pdmApi.addReading(machine.id, {
+                            sealer_temp_c: 128.0,
+                            pneumatic_pressure_bar: 4.5,
+                            zone_temp_c: 185.0,
+                            conveyor_speed_mpm: 120.0,
+                            motor_current_amp: 8.6,
+                            vibration_mm_s: 2.1,
+                            ambient_humidity_pct: 62.0,
+                          })
+                          toast('Data sensor Heat Sealer (128°C) & Pneumatik (4.5 bar) terekam.')
+                          await predict(machine)
+                        } catch (reason) {
+                          toast(errorMessage(reason), 'warning')
+                        }
+                      }}
+                    >
+                      Simulasi Sealer Drop (128°C)
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        try {
+                          const res = await pdmApi.correlate(machine.id, true)
+                          if (res.correlated) {
+                            toast(`Korelasi terdeteksi: ${res.diagnosis}`)
+                            requests.reload()
+                          } else {
+                            toast(res.diagnosis ?? 'Tidak ada lonjakan SEAL_DEFECT berkorelasi.')
+                          }
+                          await predict(machine)
+                        } catch (reason) {
+                          toast(errorMessage(reason), 'warning')
+                        }
+                      }}
+                    >
+                      Korelasi Vision ↔ PdM
+                    </Button>
+                  </>
+                )}
               </footer>
             </article>
           ))}
@@ -195,6 +252,29 @@ function PredictionPanel({ prediction, onClose }: { prediction: PdmPrediction; o
             {!!prediction.failure_modes.length && (
               <p className="prediction-modes">Mode kegagalan terpantau: {prediction.failure_modes.join(', ')}</p>
             )}
+            {prediction.food_features && (
+              <dl className="prediction-grid" style={{ marginTop: '0.6rem' }}>
+                <div><dt>Sealer Temp</dt><dd>{prediction.food_features.sealer_temp_c ?? '—'} °C</dd></div>
+                <div><dt>Air Pressure</dt><dd>{prediction.food_features.pneumatic_pressure_bar ?? '—'} bar</dd></div>
+                <div><dt>Motor Load</dt><dd>{prediction.food_features.motor_current_amp ?? prediction.food_features.motor_current_a ?? '—'} A</dd></div>
+                <div><dt>Vibration</dt><dd>{prediction.food_features.vibration_mm_s ?? '—'} mm/s</dd></div>
+                <div><dt>Conveyor Speed</dt><dd>{prediction.food_features.conveyor_speed_mpm ?? '—'} m/min</dd></div>
+                <div><dt>Ambient Humidity</dt><dd>{prediction.food_features.ambient_humidity_pct ?? '—'} %</dd></div>
+              </dl>
+            )}
+            {prediction.vision_correlation && (
+              <div className={`card-metric ${prediction.vision_correlation.correlated ? 'card-metric--danger' : 'card-metric--ok'}`} style={{ marginTop: '0.75rem' }}>
+                <CircleAlert size={18} />
+                <div>
+                  <strong>
+                    {prediction.vision_correlation.correlated
+                      ? 'Badge Korelasi Vision AI ↔ PdM: ANOMALI TERKONFIRMASI'
+                      : 'Badge Korelasi Vision AI ↔ PdM: Normal'}
+                  </strong>
+                  <span>{prediction.vision_correlation.diagnosis ?? 'Tidak ada lonjakan SEAL_DEFECT berkorelasi.'}</span>
+                </div>
+              </div>
+            )}
           </>
         )}
         <p className="page-footnote"><span>*</span> Skor kesehatan = 1 − probabilitas kegagalan (mode model), atau jumlah ambang terpicu (mode aturan). Bukan pengganti keputusan teknisi.</p>
@@ -207,7 +287,7 @@ function MachineFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
   const toast = useToast()
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [type, setType] = useState('press')
+  const [type, setType] = useState('HEAT_SEALER')
   const [saving, setSaving] = useState(false)
 
   const submit = async (event: FormEvent) => {
@@ -237,14 +317,19 @@ function MachineFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
           </label>
           <label>
             Kode mesin
-            <input value={code} onChange={(event) => setCode(event.target.value)} required minLength={1} maxLength={80} aria-label="Kode mesin" placeholder="mis. CNV-01" />
+            <input value={code} onChange={(event) => setCode(event.target.value)} required minLength={1} maxLength={80} aria-label="Kode mesin" placeholder="mis. FW-SEAL-01" />
           </label>
           <label>
             Tipe
             <select value={type} onChange={(event) => setType(event.target.value)} aria-label="Tipe mesin">
+              <option value="HEAT_SEALER">Heat Sealer Kemasan (HEAT_SEALER)</option>
+              <option value="FLOW_WRAPPER">Horizontal Flow Wrapper (FLOW_WRAPPER)</option>
+              <option value="CONVEYOR_DRIVE">Motor & Drive Konveyor (CONVEYOR_DRIVE)</option>
+              <option value="BAKING_OVEN">Oven Pemanggang (BAKING_OVEN)</option>
+              <option value="CHILLER_TUNNEL">Chiller / Cold Chain Tunnel (CHILLER_TUNNEL)</option>
+              <option value="food_packaging">Flow-Wrap / Heat Sealer Pangan (Legacy)</option>
               <option value="press">Press</option>
               <option value="cnc">CNC</option>
-              <option value="conveyor">Conveyor</option>
               <option value="robot">Robot</option>
               <option value="generic">Umum</option>
             </select>

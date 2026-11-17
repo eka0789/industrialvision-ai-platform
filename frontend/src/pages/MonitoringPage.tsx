@@ -1,5 +1,5 @@
-import { Activity, Boxes, Database, Radio, RefreshCw, ServerCog } from 'lucide-react'
-import { modelApi, systemApi } from '../api'
+import { Activity, Boxes, Database, Radio, RefreshCw, ServerCog, Zap } from 'lucide-react'
+import { modelApi, otApi, systemApi } from '../api'
 import { Button, EmptyState, ErrorState, LoadingBlock, PageHeader, StatusBadge } from '../components/Ui'
 import { useApi } from '../hooks/useApi'
 import type { ModelVersion } from '../types'
@@ -13,14 +13,15 @@ const stageLabels: Record<string, string> = {
 export default function MonitoringPage() {
   const health = useApi(() => systemApi.health(), [])
   const models = useApi(() => modelApi.list(), [])
+  const otStatus = useApi(() => otApi.status(), [])
 
   return (
     <div className="page monitoring-page">
       <PageHeader
-        eyebrow="MONITORING"
-        title={<>Kesehatan platform.<br /><span className="text-muted">Transparan sampai ke bus dan worker.</span></>}
-        description="Mode aktif event bus & worker, status basis data, tahapan model registry, dan drift fitur (PSI) dari pemeriksaan terjadwal."
-        actions={<Button variant="secondary" onClick={() => { void health.reload(); void models.reload() }}><RefreshCw size={16} />Muat ulang</Button>}
+        eyebrow="MONITORING & OT TELEMETRY"
+        title={<>Kesehatan platform.<br /><span className="text-muted">Transparan sampai ke bus, worker, dan PLC.</span></>}
+        description="Mode aktif event bus & worker, latensi Trigger-to-Reject (ms) konveyor OT Bridge, status basis data, dan tahapan model registry."
+        actions={<Button variant="secondary" onClick={() => { void health.reload(); void models.reload(); void otStatus.reload() }}><RefreshCw size={16} />Muat ulang</Button>}
       />
 
       {health.isLoading && <LoadingBlock label="Membaca status layanan…" />}
@@ -63,6 +64,18 @@ export default function MonitoringPage() {
               <StatusBadge value={health.data.worker?.degraded ? 'error' : 'active'} />
               <small>
                 mode <strong>{health.data.worker?.mode ?? '—'}</strong> · dead-letter {health.data.worker?.dead_letter_count ?? 0}
+              </small>
+            </div>
+          </div>
+          <div className="monitor-card" data-testid="ot-latency-card">
+            <Zap size={20} />
+            <div>
+              <h3>Trigger-to-Reject Latency (ms)</h3>
+              <StatusBadge value={(otStatus.data?.avg_trigger_to_reject_ms ?? 0) <= 250 ? 'active' : 'warning'} />
+              <small>
+                Rata-rata: <strong>{otStatus.data?.avg_trigger_to_reject_ms !== null && otStatus.data?.avg_trigger_to_reject_ms !== undefined ? `${otStatus.data.avg_trigger_to_reject_ms} ms` : '— ms'}</strong>
+                {' · '}Inferensi AI: <strong>{otStatus.data?.avg_inference_latency_ms !== null && otStatus.data?.avg_inference_latency_ms !== undefined ? `${otStatus.data.avg_inference_latency_ms} ms` : '— ms'}</strong>
+                {' · '}Total Trigger/Reject: {otStatus.data?.total_triggers ?? 0} / {otStatus.data?.total_rejector_actuations ?? 0}
               </small>
             </div>
           </div>

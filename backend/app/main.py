@@ -24,6 +24,10 @@ from app.api.v1.routers.websockets import router as websockets_router
 from app.api.v1.routers.streaming import router as streaming_router
 from app.api.v1.routers.reports import router as reports_router
 from app.api.v1.routers.training import router as training_router
+from app.api.v1.routers.skus import router as skus_router
+from app.api.v1.routers.recipes import router as recipes_router
+from app.api.v1.routers.batches import router as batches_router
+from app.api.v1.routers.ot import router as ot_router
 from app.core.config import settings
 from app.services.event_bus import event_bus
 from app.services.live_feed import live_feed
@@ -136,6 +140,18 @@ def create_app() -> FastAPI:
     _app.include_router(streaming_router)
     _app.include_router(reports_router)
     _app.include_router(training_router)
+    _app.include_router(skus_router)
+    _app.include_router(recipes_router)
+    _app.include_router(batches_router)
+    _app.include_router(ot_router)
+    # Also mount under /api/v1 prefix for explicit /api/v1/* callers
+    _app.include_router(skus_router, prefix=settings.API_V1_STR, include_in_schema=False)
+    _app.include_router(recipes_router, prefix=settings.API_V1_STR, include_in_schema=False)
+    _app.include_router(batches_router, prefix=settings.API_V1_STR, include_in_schema=False)
+    _app.include_router(ot_router, prefix=settings.API_V1_STR, include_in_schema=False)
+    _app.include_router(pdm_router, prefix=settings.API_V1_STR, include_in_schema=False)
+    _app.include_router(rag_router, prefix=settings.API_V1_STR, include_in_schema=False)
+    _app.include_router(agent_router, prefix=settings.API_V1_STR, include_in_schema=False)
 
     @_app.get("/", tags=["root"])
     def root():
