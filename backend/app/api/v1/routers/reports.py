@@ -157,7 +157,7 @@ def list_reports(
     return items
 
 
-@router.get("/download/{filename}", response_class=None)
+@router.get("/download/{filename}", response_class=PlainTextResponse)
 def download_report(
     filename: str,
     _user: User = Depends(require_roles(*READ_ROLES)),

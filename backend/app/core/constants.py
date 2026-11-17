@@ -17,6 +17,7 @@ class CameraSourceType(str):
     LOCAL_FILE = "local_file"
     WEBCAM = "webcam"
     RTSP = "rtsp"
+    GENICAM = "genicam"
     SIMULATED = "simulated"
 
 

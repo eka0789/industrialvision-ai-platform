@@ -734,22 +734,38 @@ def execute_hardware_trigger(
         except Exception as exc:
             logger.warning("Evidence save skipped: %s", exc)
 
-    adapter = OTAdapter(
-        protocol=active_protocol,
-        plc_host=getattr(camera, "ot_host", None) or settings.OT_PLC_HOST,
-        plc_port=getattr(camera, "ot_port", None) or settings.OT_PLC_PORT,
-        mqtt_broker=getattr(camera, "ot_host", None) or settings.OT_MQTT_BROKER,
-        pulse_ms=pulse_ms,
-        org_id=org_id,
-        line_id=camera.line_id or 1,
-    )
-    actuation = adapter.actuate_rejector(
-        camera_id=camera.id,
-        inspection_id=inspection.id,
-        decision=inspection.decision,
-        actuator_type=actuator_type,
-        coil_address=coil_addr,
-    )
+    shadow_mode = bool(getattr(camera, "ot_shadow_mode", False))
+    if shadow_mode:
+        would_actuate = inspection.decision in ("FAIL", "ERROR")
+        actuation = {
+            "actuated": False,
+            "shadow_mode": True,
+            "would_actuate": would_actuate,
+            "protocol": active_protocol,
+            "actuator_type": actuator_type,
+            "plc_target": f"shadow://{sanitize_ot_host(getattr(camera, 'ot_host', None)) or 'local'}/coil:{coil_addr}",
+            "reject_coil": coil_addr,
+            "pulse_ms": 0,
+            "inspection_id": inspection.id,
+            "transport_status": "shadow_mode_suppressed" if would_actuate else "idle_pass",
+        }
+    else:
+        adapter = OTAdapter(
+            protocol=active_protocol,
+            plc_host=getattr(camera, "ot_host", None) or settings.OT_PLC_HOST,
+            plc_port=getattr(camera, "ot_port", None) or settings.OT_PLC_PORT,
+            mqtt_broker=getattr(camera, "ot_host", None) or settings.OT_MQTT_BROKER,
+            pulse_ms=pulse_ms,
+            org_id=org_id,
+            line_id=camera.line_id or 1,
+        )
+        actuation = adapter.actuate_rejector(
+            camera_id=camera.id,
+            inspection_id=inspection.id,
+            decision=inspection.decision,
+            actuator_type=actuator_type,
+            coil_address=coil_addr,
+        )
     total_cycle_ms = round((time.perf_counter() - cycle_start) * 1000.0, 2)
 
     meta = dict(inspection.metadata_json or {})
@@ -758,6 +774,8 @@ def execute_hardware_trigger(
     meta["trigger_to_reject_ms"] = total_cycle_ms
     meta["reject_delay_ms"] = delay_ms
     meta["reject_pulse_ms"] = pulse_ms
+    meta["ot_shadow_mode"] = shadow_mode
+    meta["would_actuate"] = bool(actuation.get("would_actuate", actuation["actuated"]))
     inspection.metadata_json = meta
 
     ot_event = OTTriggerEvent(
@@ -778,6 +796,8 @@ def execute_hardware_trigger(
             "pulse_ms": actuation["pulse_ms"],
             "reject_delay_ms": delay_ms,
             "trigger_to_reject_ms": total_cycle_ms,
+            "shadow_mode": shadow_mode,
+            "would_actuate": bool(actuation.get("would_actuate", actuation["actuated"])),
             "batch_code": batch.batch_code if batch else None,
             "recipe_sku": recipe.sku_code if recipe else sku_code,
             "evidence_saved": evidence_saved,

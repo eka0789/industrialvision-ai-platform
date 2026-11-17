@@ -149,6 +149,7 @@ class Camera(Base):
     reject_coil: Mapped[int | None] = mapped_column(Integer, nullable=True, default=100)
     reject_delay_ms: Mapped[int] = mapped_column(Integer, default=120, nullable=False, server_default="120")
     reject_pulse_ms: Mapped[int] = mapped_column(Integer, default=45, nullable=False, server_default="45")
+    ot_shadow_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), default=now, nullable=False

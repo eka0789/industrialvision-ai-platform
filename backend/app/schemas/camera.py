@@ -54,6 +54,7 @@ class CameraListOut(BaseModel):
     reject_coil: int | None = 100
     reject_delay_ms: int = 120
     reject_pulse_ms: int = 45
+    ot_shadow_mode: bool = False
 
     @field_serializer("ot_host")
     def redact_ot_host(self, value: str | None) -> str | None:
@@ -76,6 +77,7 @@ class CameraCreate(BaseModel):
     reject_coil: int | None = Field(default=100, ge=0, le=65535)
     reject_delay_ms: int = Field(default=120, ge=0, le=10000)
     reject_pulse_ms: int = Field(default=45, ge=5, le=5000)
+    ot_shadow_mode: bool = False
 
     @field_validator("source_url")
     @classmethod
@@ -98,6 +100,7 @@ class CameraUpdate(BaseModel):
     reject_coil: int | None = Field(default=None, ge=0, le=65535)
     reject_delay_ms: int | None = Field(default=None, ge=0, le=10000)
     reject_pulse_ms: int | None = Field(default=None, ge=5, le=5000)
+    ot_shadow_mode: bool | None = None
 
     @field_validator("source_url")
     @classmethod

@@ -56,6 +56,14 @@ class HealthEndpointTests(unittest.TestCase):
         self.assertEqual(body['event_bus']['connected'], False)
         self.assertEqual(body['status'], 'degraded')
 
+    def test_openapi_schema_loads_successfully(self):
+        with patch.object(settings, 'APP_ENV', 'test'), TestClient(create_app()) as client:
+            response = client.get('/api/openapi.json')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIn('paths', body)
+        self.assertIn('/reports/download/{filename}', body['paths'])
+
 
 if __name__ == '__main__':
     unittest.main()

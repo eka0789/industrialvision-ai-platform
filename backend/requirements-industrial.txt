@@ -1,0 +1,16 @@
+# ---------------------------------------------------------------------------
+# IndustrialVision AI  -  Optional Industrial Hardware & Field Extras
+# ---------------------------------------------------------------------------
+# Install alongside requirements.txt when deploying to a factory line:
+#   pip install -r requirements.txt -r requirements-industrial.txt
+#
+# System prerequisites (OS-level):
+#   - Tesseract OCR binary (`apt-get install tesseract-ocr`) for expiry OCR
+#   - Vendor GenTL (.cti) producer library (e.g. Basler pylon / Hikrobot MVS)
+#     for GigE Vision / USB3 Vision cameras via harvesters
+# ---------------------------------------------------------------------------
+pymodbus>=3.6,<4
+paho-mqtt>=2.0,<3
+pytesseract>=0.3.10,<1
+ultralytics>=8.2,<9
+harvesters>=1.4,<2

@@ -51,6 +51,7 @@ class CameraOTConfigUpdate(BaseModel):
     reject_coil: int | None = Field(default=100, ge=0, le=65535)
     reject_delay_ms: int = Field(default=120, ge=0, le=10000)
     reject_pulse_ms: int = Field(default=45, ge=5, le=5000)
+    ot_shadow_mode: bool = False
 
 
 class TestRejectorPulseRequest(BaseModel):
@@ -79,6 +80,7 @@ def update_camera_ot_config(
     cam.reject_coil = payload.reject_coil
     cam.reject_delay_ms = payload.reject_delay_ms
     cam.reject_pulse_ms = payload.reject_pulse_ms
+    cam.ot_shadow_mode = payload.ot_shadow_mode
 
     safe_host = sanitize_ot_host(cam.ot_host)
     db.add(
@@ -95,6 +97,7 @@ def update_camera_ot_config(
                 "reject_coil": cam.reject_coil,
                 "reject_delay_ms": cam.reject_delay_ms,
                 "reject_pulse_ms": cam.reject_pulse_ms,
+                "ot_shadow_mode": cam.ot_shadow_mode,
             },
             ip_address=request.client.host if request.client else None,
         )
@@ -110,6 +113,7 @@ def update_camera_ot_config(
         "reject_coil": cam.reject_coil,
         "reject_delay_ms": cam.reject_delay_ms,
         "reject_pulse_ms": cam.reject_pulse_ms,
+        "ot_shadow_mode": cam.ot_shadow_mode,
     }
 
 

@@ -194,44 +194,52 @@ class AsyncOTConveyorWorker:
                 )
 
             # 4) If FAIL or ERROR, wait reject_delay_ms (conveyor travel to nozzle) and fire PLC REJECT pulse
+            #    unless ot_shadow_mode is enabled on the camera (pilot / dry-run).
+            shadow_mode = bool(getattr(camera, "ot_shadow_mode", False))
             pulse_info: dict[str, Any] = {
                 "actuated": False,
+                "shadow_mode": shadow_mode,
+                "would_actuate": False,
                 "protocol": adapter.protocol,
                 "reject_coil": reject_coil,
                 "pulse_ms": 0,
                 "transport_status": "idle_pass",
             }
             if decision in ("FAIL", "ERROR"):
-                if reject_delay_ms > 0:
-                    await asyncio.sleep(min(reject_delay_ms, 2000) / 1000.0)
-                try:
-                    pulse_info = adapter.send_reject_pulse(
-                        reject_coil=reject_coil,
-                        pulse_ms=reject_pulse_ms,
-                        inspection_id=inspection_id,
-                    )
-                except Exception as exc:
-                    self.error_count += 1
-                    camera.status = CameraStatus.DEGRADED
-                    camera.last_error = f"OT PLC reject write failed: {exc}"
-                    self._record_system_alert(
-                        db,
-                        "ot.plc_connection_error",
-                        f"PLC reject pulse failed on {camera.name} (coil {reject_coil}): {exc}",
-                        {
-                            "camera_id": camera.id,
+                if shadow_mode:
+                    pulse_info["would_actuate"] = True
+                    pulse_info["transport_status"] = "shadow_mode_suppressed"
+                else:
+                    if reject_delay_ms > 0:
+                        await asyncio.sleep(min(reject_delay_ms, 2000) / 1000.0)
+                    try:
+                        pulse_info = adapter.send_reject_pulse(
+                            reject_coil=reject_coil,
+                            pulse_ms=reject_pulse_ms,
+                            inspection_id=inspection_id,
+                        )
+                    except Exception as exc:
+                        self.error_count += 1
+                        camera.status = CameraStatus.DEGRADED
+                        camera.last_error = f"OT PLC reject write failed: {exc}"
+                        self._record_system_alert(
+                            db,
+                            "ot.plc_connection_error",
+                            f"PLC reject pulse failed on {camera.name} (coil {reject_coil}): {exc}",
+                            {
+                                "camera_id": camera.id,
+                                "inspection_id": inspection_id,
+                                "reject_coil": reject_coil,
+                                "error": str(exc)[:300],
+                            },
+                        )
+                        return {
+                            "status": "plc_error",
+                            "stage": "send_reject_pulse",
                             "inspection_id": inspection_id,
-                            "reject_coil": reject_coil,
-                            "error": str(exc)[:300],
-                        },
-                    )
-                    return {
-                        "status": "plc_error",
-                        "stage": "send_reject_pulse",
-                        "inspection_id": inspection_id,
-                        "decision": decision,
-                        "error": str(exc),
-                    }
+                            "decision": decision,
+                            "error": str(exc),
+                        }
 
             # 5) Record end-to-end trigger_to_reject_ms into Inspection metadata & OTTriggerEvent
             trigger_to_reject_ms = round((time.perf_counter() - t0) * 1000.0, 2)
@@ -243,6 +251,8 @@ class AsyncOTConveyorWorker:
                 meta["reject_pulse_ms"] = reject_pulse_ms
                 meta["ot_protocol"] = adapter.protocol
                 meta["rejector_actuated"] = bool(pulse_info.get("actuated"))
+                meta["ot_shadow_mode"] = shadow_mode
+                meta["would_actuate"] = bool(pulse_info.get("would_actuate", pulse_info.get("actuated")))
                 ins_row.metadata_json = meta
 
             ot_ev = db.get(OTTriggerEvent, trigger_res["trigger_event_id"])
@@ -255,6 +265,8 @@ class AsyncOTConveyorWorker:
                 details["trigger_to_reject_ms"] = trigger_to_reject_ms
                 details["reject_delay_ms"] = reject_delay_ms
                 details["transport_status"] = pulse_info.get("transport_status")
+                details["shadow_mode"] = shadow_mode
+                details["would_actuate"] = bool(pulse_info.get("would_actuate", pulse_info.get("actuated")))
                 ot_ev.details_json = details
 
             db.commit()

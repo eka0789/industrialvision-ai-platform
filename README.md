@@ -658,7 +658,8 @@ the authoring workstation (see PLANNING.md Phase H for the recorded smoke output
 - **Optional OCR** requires the tesseract binary; without it the service reports `unavailable-missing-tesseract` instead of pretending.
 - **PostgreSQL migration coverage:** the nine migrations are verified on SQLite here and exercised on PostgreSQL in CI; the pgvector extension itself is optional (see above).
 - **Token storage in the browser:** access and refresh tokens are kept in `sessionStorage`, or in `localStorage` when "remember me" is checked. The strict same-origin CSP (no inline or third-party scripts) mitigates the usual XSS vector, but httpOnly cookies would be stronger. Treat this as a hardening item if your threat model includes hostile extensions on operator workstations.
-- **Evidence backup is manual:** `scripts/backup.sh` covers the database only; the evidence volume must be archived separately.
+- **Evidence backup:** `scripts/backup.sh` supports `--evidence` to archive both the database and the evidence directory together; in containerized deployments where evidence lives in a named Docker volume, schedule volume snapshots or run `backup.sh --evidence` against the mounted path.
+- **Industrial hardware extras:** `pymodbus`, `paho-mqtt`, `pytesseract`, `ultralytics`, and `harvesters` (GenICam) are grouped in `backend/requirements-industrial.txt` so the core image stays lightweight; install them and configure `ot_shadow_mode: true` during factory pilot commissioning (see [docs/FACTORY_PILOT_RUNBOOK.md](docs/FACTORY_PILOT_RUNBOOK.md)).
 - **Docker images are not built in this environment:** the compose stack was reviewed and its config validated, but a full `docker compose up` has not been executed on this machine.
 
 ---
