@@ -71,18 +71,12 @@ export default function OverviewPage() {
       <PageHeader eyebrow="OPERATIONS / OVERVIEW" title={<>Ruang kendali<span className="title-dot">.</span></>}
         description={`Selamat datang, ${user?.username}. Berikut aktivitas quality inspection Anda.`}
         actions={
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <Link to="/agent" className="button button--secondary">
-              Analisis & Tindakan Korektif AI<ArrowRight size={16} />
-            </Link>
-            <Link to="/batches" className="button button--secondary">
-              Batch & Audit Reports<ArrowRight size={16} />
-            </Link>
+          <>
             <Link to="/recipes" className="button button--secondary">
-              Ganti SKU / Changeover<ArrowRight size={16} />
+              Ganti SKU<ArrowRight size={16} />
             </Link>
             <Link to="/inspections/new" className="button button--primary"><ScanSearch size={17} />Mulai inspeksi<ArrowUpRight size={16} /></Link>
-          </div>
+          </>
         } />
       <ActiveBatchBanner canOperate={user?.role !== 'viewer'} />
       {isLoading && <LoadingBlock label="Menyusun data operasional…" />}
@@ -230,7 +224,7 @@ function ActiveBatchBanner({ canOperate }: { canOperate: boolean }) {
       style={{
         marginBottom: '1.25rem',
         padding: '0.95rem 1.15rem',
-        borderLeft: '4px solid #d6f779',
+        borderLeft: '4px solid var(--accent-dark)',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem' }}>
@@ -274,7 +268,7 @@ function ActiveBatchBanner({ canOperate }: { canOperate: boolean }) {
                 </Link>
               </>
             ) : (
-              <form onSubmit={startBatch} style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <form onSubmit={startBatch} className="inline-batch-form">
                 <input
                   value={lotCode}
                   onChange={(e) => setLotCode(e.target.value)}

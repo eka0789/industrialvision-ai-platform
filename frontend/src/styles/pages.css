@@ -590,3 +590,37 @@
 .experiment-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .experiment-table th, .experiment-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line, #ddd); }
 .mono { font-family: var(--mono, monospace); }
+
+/* ── Inline batch form controls ────────────────────────────────────────── */
+
+.inline-batch-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inline-batch-form input,
+.inline-batch-form select {
+  height: 43px;
+  padding: 8px 12px;
+  border: 1px solid #cbd4c0;
+  border-radius: 2px;
+  background: var(--surface);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.inline-batch-form input:focus,
+.inline-batch-form select:focus {
+  border-color: #7c8d69;
+  outline: 2px solid #e1e9d4;
+  outline-offset: 0;
+}
+
+@media (max-width: 780px) {
+  .inline-batch-form { width: 100%; }
+  .inline-batch-form input,
+  .inline-batch-form select,
+  .inline-batch-form .button { flex: 1 1 100%; width: 100% !important; }
+}

@@ -195,8 +195,8 @@ export default function BatchesPage() {
                 key={b.id}
                 data-testid={`batch-row-${b.batch_code}`}
                 style={{
-                  border: '1px solid var(--border, #2a2e37)',
-                  borderRadius: '10px',
+                  border: '1px solid var(--line)',
+                  borderRadius: '2px',
                   padding: '1rem',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -226,7 +226,7 @@ export default function BatchesPage() {
                     Mulai: {formatDate(b.started_at)} · Selesai: {b.closed_at ? formatDate(b.closed_at) : 'Masih Berjalan'}
                   </small>
                   {b.qa_signature_hash && (
-                    <small style={{ display: 'block', marginTop: '0.25rem', color: '#d6f779' }}>
+                    <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--success)' }}>
                       <ShieldCheck size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
                       Terverifikasi QA Supervisor (<strong>{b.qa_signed_by_username}</strong>) · SHA-256: <code>{b.qa_signature_hash.slice(0, 20)}…</code>
                     </small>

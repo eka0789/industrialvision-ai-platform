@@ -112,7 +112,7 @@ export default function HistoryPage() {
             <h2>Production Batch & Laporan Audit QA</h2>
           </div>
           {canWriteBatch && (
-            <form onSubmit={createBatch} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <form onSubmit={createBatch} className="inline-batch-form">
               <input
                 value={newBatchCode}
                 onChange={(e) => setNewBatchCode(e.target.value)}
@@ -138,7 +138,7 @@ export default function HistoryPage() {
         {!!(batches.data ?? []).length && (
           <div style={{ display: 'grid', gap: '0.75rem', padding: '0.75rem 1rem' }}>
             {(batches.data ?? []).slice(0, 5).map((b) => (
-              <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid var(--border, #2a2e37)', paddingBottom: '0.65rem' }}>
+              <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid var(--line)', paddingBottom: '0.65rem' }}>
                 <div>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <strong>{b.batch_code}</strong>

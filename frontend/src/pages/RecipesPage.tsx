@@ -412,7 +412,7 @@ export default function RecipesPage() {
 
           {/* Active Zone Property Inspector */}
           {activeZone && (
-            <div className="form-grid form-grid--two" style={{ marginBottom: '1rem', padding: '0.8rem', border: '1px solid var(--border, #2a2e37)', borderRadius: '8px' }}>
+            <div className="form-grid form-grid--two" style={{ marginBottom: '1rem', padding: '0.8rem', border: '1px solid var(--line)', borderRadius: '2px' }}>
               <label className="field">
                 <span>Nama Zona ROI</span>
                 <input
