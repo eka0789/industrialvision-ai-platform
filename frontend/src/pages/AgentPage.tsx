@@ -1,24 +1,31 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Bot, Check, CircleAlert, History, Inbox, LoaderCircle, Send, X } from 'lucide-react'
+import { Activity, Bot, Check, CircleAlert, History, Inbox, LoaderCircle, Send, ShieldAlert, X } from 'lucide-react'
 import { agentApi } from '../api'
 import { Button, EmptyState, ErrorState, LoadingBlock, PageHeader, StatusBadge } from '../components/Ui'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
-import type { AgentRun, IncidentTriageResult } from '../types'
+import type { AgentRun, DefectSpikeEvaluation, IncidentTriageResult } from '../types'
 import { errorMessage } from '../utils/errors'
 import { formatDate } from '../utils/format'
+
+type ProactiveAction = 'FOREIGN_MATTER' | 'LENS_BLUR_OR_FOG' | 'SEAL_SPIKE'
 
 export default function AgentPage() {
   const { user } = useAuth()
   const toast = useToast()
   const [question, setQuestion] = useState('')
   const [asking, setAsking] = useState(false)
+  const [runningAction, setRunningAction] = useState<ProactiveAction | null>(null)
   const [current, setCurrent] = useState<AgentRun | null>(null)
   const [triageResult, setTriageResult] = useState<IncidentTriageResult | null>(null)
+  const [spikeResult, setSpikeResult] = useState<DefectSpikeEvaluation | null>(null)
   const runs = useApi(() => agentApi.runs(), [current?.id])
-  const approvals = useApi(() => agentApi.approvals('pending'), [current?.id, triageResult?.approval_id])
+  const approvals = useApi(
+    () => agentApi.approvals('pending'),
+    [current?.id, triageResult?.approval_id, spikeResult?.approval_id],
+  )
   const [decidingId, setDecidingId] = useState<number | null>(null)
 
   const canApprove = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'ai_engineer'
@@ -26,7 +33,7 @@ export default function AgentPage() {
   const triggerIncidentTriage = async (
     incidentType: 'FOREIGN_MATTER' | 'LENS_BLUR_OR_FOG' | 'PSI_DRIFT' | 'MISSING_EXP_DATE' | 'SEAL_DEFECT',
   ) => {
-    setAsking(true)
+    setRunningAction(incidentType === 'FOREIGN_MATTER' ? 'FOREIGN_MATTER' : 'LENS_BLUR_OR_FOG')
     try {
       const res = await agentApi.triageIncident({ incident_type: incidentType })
       setTriageResult(res)
@@ -39,7 +46,26 @@ export default function AgentPage() {
     } catch (reason) {
       toast(errorMessage(reason), 'warning')
     } finally {
-      setAsking(false)
+      setRunningAction(null)
+    }
+  }
+
+  const evaluateSealSpike = async () => {
+    setRunningAction('SEAL_SPIKE')
+    try {
+      const res = await agentApi.evaluateDefectSpike({
+        defect_category: 'seal_leak',
+        window_minutes: 5,
+        spike_threshold: 3,
+      })
+      setSpikeResult(res)
+      toast(res.recommended_action, res.spike_detected ? 'warning' : 'info')
+      approvals.reload()
+      runs.reload()
+    } catch (reason) {
+      toast(errorMessage(reason), 'warning')
+    } finally {
+      setRunningAction(null)
     }
   }
 
@@ -84,57 +110,127 @@ export default function AgentPage() {
         eyebrow="OPERATIONS AGENT & HACCP CCP ASSISTANT"
         title={<>Asisten operasi.<br /><span className="text-muted">Tindakan berdampak selalu butuh setuju manusia.</span></>}
         description="Ajukan pertanyaan operasional atau deteksi otomatis lonjakan FAIL 5 menit (Seal Defect) yang berkorelasi dengan suhu Heat Sealer PdM & SOP HACCP di RAG."
-        actions={
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <Button
-              variant="secondary"
-              loading={asking}
-              onClick={() => triggerIncidentTriage('FOREIGN_MATTER')}
-            >
-              <CircleAlert size={16} />Analisis & Tindakan Korektif AI (Foreign Matter)
-            </Button>
-            <Button
-              variant="secondary"
-              loading={asking}
-              onClick={() => triggerIncidentTriage('LENS_BLUR_OR_FOG')}
-            >
-              <Bot size={16} />Analisis & Tindakan Korektif AI (Lens Blur / Drift)
-            </Button>
-            <Button
-              variant="secondary"
-              loading={asking}
-              onClick={async () => {
-                setAsking(true)
-                try {
-                  const res = await agentApi.evaluateDefectSpike({ defect_category: 'seal_leak', window_minutes: 5, spike_threshold: 3 })
-                  toast(res.recommended_action, res.spike_detected ? 'warning' : 'info')
-                  approvals.reload()
-                  runs.reload()
-                } catch (reason) {
-                  toast(errorMessage(reason), 'warning')
-                } finally {
-                  setAsking(false)
-                }
-              }}
-            >
-              <Bot size={16} />Cek Lonjakan Seal Defect (5 Menit)
-            </Button>
-          </div>
-        }
       />
 
+      <section className="panel triage-panel" aria-labelledby="triage-heading">
+        <header className="triage-panel-header">
+          <div>
+            <p className="eyebrow"><span aria-hidden="true" />PROACTIVE TRIAGE / HACCP CCP</p>
+            <h2 id="triage-heading"><ShieldAlert size={18} /> Deteksi proaktif &amp; tindakan korektif</h2>
+          </div>
+          <p className="triage-panel-note">Setiap rekomendasi korektif tetap menunggu persetujuan manusia di Kotak Persetujuan.</p>
+        </header>
+
+        <div className="triage-grid">
+          <article className="triage-card">
+            <div className="triage-card-body">
+              <span className="triage-card-tag">CCP-01 · KONTAK PRODUK</span>
+              <h3>Foreign Matter</h3>
+              <p>Analisis temuan benda asing terhadap SOP HACCP &amp; siapkan tindakan mitigasi HITL.</p>
+            </div>
+            <Button
+              variant="secondary"
+              loading={runningAction === 'FOREIGN_MATTER'}
+              disabled={runningAction !== null}
+              onClick={() => triggerIncidentTriage('FOREIGN_MATTER')}
+            >
+              <CircleAlert size={16} />Analisis &amp; Tindakan Korektif
+            </Button>
+          </article>
+
+          <article className="triage-card">
+            <div className="triage-card-body">
+              <span className="triage-card-tag">OPTIK · STASIUN KAMERA</span>
+              <h3>Lens Blur / Drift</h3>
+              <p>Evaluasi penurunan ketajaman lensa atau kabut pada kamera inspeksi lini produksi.</p>
+            </div>
+            <Button
+              variant="secondary"
+              loading={runningAction === 'LENS_BLUR_OR_FOG'}
+              disabled={runningAction !== null}
+              onClick={() => triggerIncidentTriage('LENS_BLUR_OR_FOG')}
+            >
+              <Bot size={16} />Analisis &amp; Tindakan Korektif
+            </Button>
+          </article>
+
+          <article className="triage-card">
+            <div className="triage-card-body">
+              <span className="triage-card-tag">SEAL INTEGRITY · PDM</span>
+              <h3>Lonjakan Seal Defect</h3>
+              <p>Deteksi lonjakan FAIL 5 menit yang berkorelasi dengan suhu Heat Sealer PdM.</p>
+            </div>
+            <Button
+              variant="secondary"
+              loading={runningAction === 'SEAL_SPIKE'}
+              disabled={runningAction !== null}
+              onClick={evaluateSealSpike}
+            >
+              <Activity size={16} />Cek Lonjakan (5 Menit)
+            </Button>
+          </article>
+        </div>
+      </section>
+
       {triageResult && (
-        <section className="panel" aria-label="Hasil Triase Insiden Proaktif" style={{ marginBottom: '1.25rem', padding: '1rem', borderLeft: '4px solid #f97316' }}>
-          <h2 style={{ marginTop: 0 }}>Triase Insiden Proaktif: {triageResult.incident_type}</h2>
-          <p>{triageResult.sop_answer}</p>
+        <section className="panel triage-result" aria-label="Hasil Triase Insiden Proaktif">
+          <div className="triage-result-head">
+            <div>
+              <span className="triage-card-tag">HASIL TRIASE PROAKTIF</span>
+              <h2>{triageResult.incident_type.replaceAll('_', ' ')}</h2>
+            </div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Tutup hasil triase"
+              onClick={() => setTriageResult(null)}
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <p className="triage-result-body">{triageResult.sop_answer}</p>
           {!!triageResult.sop_citations.length && (
-            <small style={{ display: 'block', marginBottom: '0.5rem' }}>
+            <p className="triage-result-meta">
               Sitasi SOP RAG (1:1): {triageResult.sop_citations.map((c) => `[${c.index}] doc #${c.document_id}`).join(', ')}
-            </small>
+            </p>
           )}
           {triageResult.approval_id && (
-            <p style={{ margin: 0 }}>
+            <p className="triage-result-hitl">
               <strong>Mitigasi HITL Disiapkan:</strong> ID Persetujuan #{triageResult.approval_id} menunggu persetujuan di Kotak Persetujuan di bawah.
+            </p>
+          )}
+        </section>
+      )}
+
+      {spikeResult && (
+        <section
+          className={`panel triage-result ${spikeResult.spike_detected ? 'triage-result--danger' : 'triage-result--ok'}`}
+          aria-label="Hasil Evaluasi Lonjakan Seal Defect"
+        >
+          <div className="triage-result-head">
+            <div>
+              <span className="triage-card-tag">
+                EVALUASI LONJAKAN ({spikeResult.window_minutes} MENIT) · {spikeResult.defect_category.toUpperCase()}
+              </span>
+              <h2>
+                {spikeResult.spike_detected
+                  ? `Lonjakan terdeteksi (${spikeResult.matched_fail_count}/${spikeResult.spike_threshold} FAIL)`
+                  : `Tidak ada lonjakan (${spikeResult.matched_fail_count}/${spikeResult.spike_threshold} FAIL)`}
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Tutup hasil evaluasi lonjakan"
+              onClick={() => setSpikeResult(null)}
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <p className="triage-result-body">{spikeResult.recommended_action}</p>
+          {spikeResult.approval_id && (
+            <p className="triage-result-hitl">
+              <strong>Mitigasi HITL Disiapkan:</strong> ID Persetujuan #{spikeResult.approval_id} menunggu persetujuan di Kotak Persetujuan di bawah.
             </p>
           )}
         </section>
