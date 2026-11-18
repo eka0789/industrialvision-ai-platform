@@ -95,7 +95,7 @@ async def upload_document(
     """
     content = await file.read(settings.RAG_MAX_UPLOAD_BYTES + 1)
     if len(content) > settings.RAG_MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Document exceeds upload limit")
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Document exceeds upload limit")
     filename = file.filename or "document"
     mime = file.content_type or ""
     try:

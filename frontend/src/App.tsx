@@ -54,7 +54,7 @@ export default function App() {
                   <Route path="/agent" element={<AgentPage />} />
                   <Route path="/monitoring" element={<MonitoringPage />} />
                   <Route path="/lab" element={<LabPage />} />
-                  <Route element={<RequireRole roles={['admin']} />}>
+                  <Route element={<RequireRole roles={['owner', 'admin']} />}>
                     <Route path="/admin" element={<AdminPage />} />
                   </Route>
                   <Route path="*" element={<NotFoundPage />} />

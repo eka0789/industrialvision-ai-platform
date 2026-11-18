@@ -77,7 +77,7 @@ def _decode_uploaded_image(upload: UploadFile, content: bytes):
                 width, height = source.size
                 if width <= 0 or height <= 0 or width * height > settings.MAX_IMAGE_PIXELS:
                     raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         detail="Image exceeds the maximum pixel count",
                     )
                 source.verify()
@@ -131,7 +131,7 @@ async def inspect_image(
 ) -> InspectionOut:
     content = await file.read(settings.MAX_UPLOAD_BYTES + 1)
     if len(content) > settings.MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image exceeds upload limit")
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Image exceeds upload limit")
     image, extension = _decode_uploaded_image(file, content)
 
     camera = scoped_one(db, Camera, _user, camera_id)

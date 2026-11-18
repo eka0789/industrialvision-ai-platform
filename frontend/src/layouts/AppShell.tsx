@@ -37,7 +37,9 @@ export default function AppShell() {
     : liveStatus === 'connecting'
       ? 'Menyambung feed…'
       : 'Feed langsung nonaktif'
-  const items = user?.role === 'admin' ? [...navigation, { to: '/admin', label: 'Akses pengguna', index: '11', icon: Users }] : navigation
+  const items = user?.role === 'owner' || user?.role === 'admin'
+    ? [...navigation, { to: '/admin', label: 'Akses pengguna', index: '13', icon: Users }]
+    : navigation
 
   const closeMenu = () => setMenuOpen(false)
 
