@@ -17,6 +17,7 @@ from app.services.camera import CameraStreamer
 from app.services.event_bus import event_bus
 from app.services.live_feed import inspection_topic
 from app.services.metrics import ws_closed, ws_opened
+from app.services.tenant import scoped_one
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
 
@@ -74,7 +75,7 @@ async def camera_stream(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
         return
 
-    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    camera = scoped_one(db, Camera, user, camera_id)
     if not camera:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Camera not found")
         return

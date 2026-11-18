@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useReducer, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useReducer, useState } from 'react'
 import { errorMessage } from '../utils/errors'
 
 interface ApiState<T> { data: T | null; error: string; isLoading: boolean }
@@ -31,9 +31,12 @@ export function useApi<T>(fetcher: () => Promise<T>, dependencies: readonly unkn
     return () => { active = false }
   }, [signature, version])
 
+  const reload = useCallback(() => setVersion((value) => value + 1), [])
+  const setData = useCallback((data: T | null) => dispatch({ type: 'success', data }), [])
+
   return {
     ...state,
-    reload: () => setVersion((value) => value + 1),
-    setData: (data: T | null) => dispatch({ type: 'success', data }),
+    reload,
+    setData,
   }
 }

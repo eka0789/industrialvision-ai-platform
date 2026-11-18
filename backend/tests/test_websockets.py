@@ -113,6 +113,34 @@ class WebSocketAuthTests(unittest.TestCase):
             ):
                 pass
 
+    def test_ws_camera_stream_rejects_cross_tenant_camera(self):
+        """User from org 1 cannot stream a camera owned by org 2."""
+        from app.db.models import Organization
+
+        db = self.sf()
+        try:
+            other_org = Organization(id=2, name="Other Org", slug="other-org-ws")
+            db.add(other_org)
+            db.flush()
+            other_cam = Camera(
+                name="ForeignCam",
+                source_type="simulated",
+                is_active=True,
+                org_id=other_org.id,
+            )
+            db.add(other_cam)
+            db.commit()
+            other_cam_id = other_cam.id
+        finally:
+            db.close()
+
+        with self.assertRaises(WebSocketDisconnect) as ctx:
+            with self.client.websocket_connect(
+                f"/ws/cameras/{other_cam_id}/stream?token={self.token}",
+            ):
+                pass
+        self.assertEqual(ctx.exception.code, 1008)
+
 
 if __name__ == "__main__":
     unittest.main()

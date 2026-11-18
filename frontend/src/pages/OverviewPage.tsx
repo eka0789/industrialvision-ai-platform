@@ -155,7 +155,8 @@ function ActiveBatchBanner({ canOperate }: { canOperate: boolean }) {
   const [shift, setShift] = useState('SHIFT_1')
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => onInspection(() => { batches.reload() }), [onInspection])
+  const reloadBatches = batches.reload
+  useEffect(() => onInspection(() => { reloadBatches() }), [onInspection, reloadBatches])
 
   const activeBatch = (batches.data ?? []).find((b) =>
     ['ACTIVE', 'active', 'PAUSED', 'paused'].includes(b.status),

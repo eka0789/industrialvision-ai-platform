@@ -10,11 +10,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-core.txt requirements-cv.txt ./
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+ARG INSTALL_INDUSTRIAL=false
+
+COPY requirements.txt requirements-core.txt requirements-cv.txt requirements-industrial.txt ./
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt && \
+    if [ "$INSTALL_INDUSTRIAL" = "true" ]; then \
+        pip install --no-cache-dir --prefix=/install -r requirements-industrial.txt; \
+    fi
 
 # Final production stage
 FROM python:3.12-slim AS runtime
+
+ARG INSTALL_INDUSTRIAL=false
 
 WORKDIR /app
 
@@ -23,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     curl \
+    $( [ "$INSTALL_INDUSTRIAL" = "true" ] && echo "tesseract-ocr" ) \
     && rm -rf /var/lib/apt/lists/*
 
 # Security: run as non-root user

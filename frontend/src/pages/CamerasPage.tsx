@@ -87,28 +87,8 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canConfig
   const [otResult, setOtResult] = useState<OTTriggerResult | null>(null)
   const [newSku, setNewSku] = useState('')
   const [newSkuName, setNewSkuName] = useState('')
-  const [otProto, setOtProto] = useState('simulated')
-  const [otHost, setOtHost] = useState('127.0.0.1')
-  const [otPort, setOtPort] = useState(502)
-  const [trigReg, setTrigReg] = useState(1)
-  const [rejCoil, setRejCoil] = useState(100)
-  const [rejDelay, setRejDelay] = useState(120)
-  const [rejPulse, setRejPulse] = useState(45)
-  const [savingOt, setSavingOt] = useState(false)
-  const [testingPulse, setTestingPulse] = useState(false)
   const camera = resource.data
   const activeRecipe = (recipes.data ?? []).find((r) => r.is_active && (r.camera_id === id || !r.camera_id))
-
-  useEffect(() => {
-    if (!camera) return
-    setOtProto(camera.ot_protocol ?? 'simulated')
-    setOtHost(camera.ot_host ?? '127.0.0.1')
-    setOtPort(camera.ot_port ?? 502)
-    setTrigReg(camera.trigger_register ?? 1)
-    setRejCoil(camera.reject_coil ?? 100)
-    setRejDelay(camera.reject_delay_ms ?? 120)
-    setRejPulse(camera.reject_pulse_ms ?? 45)
-  }, [camera])
 
   const lifecycle = async () => {
     if (!camera) return
@@ -206,7 +186,9 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canConfig
           </ul>
           {!!(recipes.data ?? []).length && (
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-              {(recipes.data ?? []).map((r) => (
+              {(recipes.data ?? [])
+                .filter((r): r is typeof r & { sku_code: string } => Boolean(r.sku_code))
+                .map((r) => (
                 <Button
                   key={r.id}
                   variant={r.id === activeRecipe?.id ? 'primary' : 'secondary'}
@@ -284,131 +266,157 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canConfig
           </dl>
         </section>
 
-        <section className="panel" aria-label="PLC and Actuator IO" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
-          <p className="eyebrow"><Zap size={14} /> PLC & ACTUATOR I/O (MODBUS TCP / MQTT / REJECTOR)</p>
-          <div className="form-grid form-grid--two" style={{ marginTop: '0.5rem' }}>
-            <label className="field">
-              <span>Protokol OT</span>
-              <select value={otProto} disabled={!canConfigureOt} onChange={(e) => setOtProto(e.target.value)}>
-                <option value="simulated">SimulatedOTAdapter (Lokal / CI)</option>
-                <option value="modbus_tcp">ModbusTCPAdapter (Siemens S7 / Omron / Allen-Bradley)</option>
-                <option value="mqtt">MQTTIndustrialAdapter (factory/org/line/reject)</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>Host PLC / MQTT Broker</span>
-              <input
-                value={otHost}
-                disabled={!canConfigureOt}
-                onChange={(e) => setOtHost(e.target.value)}
-                placeholder="192.168.10.50 atau mqtt://broker:1883"
-              />
-            </label>
-            <label className="field">
-              <span>Port & Trigger Register</span>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                <input
-                  type="number"
-                  disabled={!canConfigureOt}
-                  value={otPort}
-                  onChange={(e) => setOtPort(Number(e.target.value))}
-                  aria-label="Port OT"
-                />
-                <input
-                  type="number"
-                  disabled={!canConfigureOt}
-                  value={trigReg}
-                  onChange={(e) => setTrigReg(Number(e.target.value))}
-                  aria-label="Trigger Register"
-                />
-              </div>
-            </label>
-            <label className="field">
-              <span>Reject Coil, Delay (ms) & Pulse (ms)</span>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                <input
-                  type="number"
-                  disabled={!canConfigureOt}
-                  value={rejCoil}
-                  onChange={(e) => setRejCoil(Number(e.target.value))}
-                  aria-label="Reject Coil"
-                  title="Reject Coil Address"
-                />
-                <input
-                  type="number"
-                  disabled={!canConfigureOt}
-                  value={rejDelay}
-                  onChange={(e) => setRejDelay(Number(e.target.value))}
-                  aria-label="Reject Delay ms"
-                  title="Reject Delay ms (Travel time camera to nozzle)"
-                />
-                <input
-                  type="number"
-                  disabled={!canConfigureOt}
-                  value={rejPulse}
-                  onChange={(e) => setRejPulse(Number(e.target.value))}
-                  aria-label="Reject Pulse ms"
-                  title="Reject Pulse ms"
-                />
-              </div>
-            </label>
-          </div>
-          {canConfigureOt && (
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
-              <Button
-                variant="secondary"
-                loading={savingOt}
-                onClick={async () => {
-                  setSavingOt(true)
-                  try {
-                    await otApi.updateConfig(id, {
-                      ot_protocol: otProto,
-                      ot_host: otHost,
-                      ot_port: Number(otPort),
-                      trigger_register: Number(trigReg),
-                      reject_coil: Number(rejCoil),
-                      reject_delay_ms: Number(rejDelay),
-                      reject_pulse_ms: Number(rejPulse),
-                    })
-                    resource.reload()
-                    toast('Konfigurasi PLC & Actuator I/O berhasil disimpan.')
-                  } catch (reason) {
-                    toast(errorMessage(reason), 'warning')
-                  } finally {
-                    setSavingOt(false)
-                  }
-                }}
-              >
-                Simpan Konfigurasi PLC
-              </Button>
-              <Button
-                variant="primary"
-                loading={testingPulse}
-                onClick={async () => {
-                  setTestingPulse(true)
-                  try {
-                    const res = await otApi.testPulse(id, {
-                      actuator_type: 'pneumatic_air_blast',
-                      reject_coil: Number(rejCoil),
-                      pulse_ms: Number(rejPulse),
-                    })
-                    toast(`Test Rejector Pulse berhasil dikirim ke ${res.rejector.plc_target} (${res.pulse_ms} ms) — tercatat di AuditLog.`)
-                  } catch (reason) {
-                    toast(errorMessage(reason), 'warning')
-                  } finally {
-                    setTestingPulse(false)
-                  }
-                }}
-              >
-                <Zap size={15} />Test Rejector Pulse
-              </Button>
-            </div>
-          )}
-        </section>
+        <CameraOTConfigSection
+          key={`${camera.id}:${camera.ot_protocol ?? ''}:${camera.ot_host ?? ''}:${camera.ot_port ?? ''}:${camera.trigger_register ?? ''}:${camera.reject_coil ?? ''}:${camera.reject_delay_ms ?? ''}:${camera.reject_pulse_ms ?? ''}`}
+          camera={camera}
+          canConfigureOt={canConfigureOt}
+          onReload={resource.reload}
+        />
 
         <div className="modal-actions"><Link to="/inspections" className="button button--secondary"><History size={16} />Riwayat inspeksi</Link>{canOperate && camera.source_type !== 'upload' && <Button variant="secondary" loading={changing} onClick={lifecycle}>{camera.status === 'connected' ? <Unplug size={16} /> : <Power size={16} />}{camera.status === 'connected' ? 'Tandai terputus' : 'Tandai terhubung'}</Button>}{canAdmin && <Button onClick={() => onEdit(camera)}><Pencil size={16} />Edit stasiun</Button>}</div>
       </div>}
     </Modal>
+  )
+}
+
+function CameraOTConfigSection({ camera, canConfigureOt, onReload }: {
+  camera: CameraType
+  canConfigureOt: boolean
+  onReload: () => void
+}) {
+  const toast = useToast()
+  const [otProto, setOtProto] = useState(camera.ot_protocol ?? 'simulated')
+  const [otHost, setOtHost] = useState(camera.ot_host ?? '127.0.0.1')
+  const [otPort, setOtPort] = useState(camera.ot_port ?? 502)
+  const [trigReg, setTrigReg] = useState(camera.trigger_register ?? 1)
+  const [rejCoil, setRejCoil] = useState(camera.reject_coil ?? 100)
+  const [rejDelay, setRejDelay] = useState(camera.reject_delay_ms ?? 120)
+  const [rejPulse, setRejPulse] = useState(camera.reject_pulse_ms ?? 45)
+  const [savingOt, setSavingOt] = useState(false)
+  const [testingPulse, setTestingPulse] = useState(false)
+
+  return (
+    <section className="panel" aria-label="PLC and Actuator IO" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
+      <p className="eyebrow"><Zap size={14} /> PLC & ACTUATOR I/O (MODBUS TCP / MQTT / REJECTOR)</p>
+      <div className="form-grid form-grid--two" style={{ marginTop: '0.5rem' }}>
+        <label className="field">
+          <span>Protokol OT</span>
+          <select value={otProto} disabled={!canConfigureOt} onChange={(e) => setOtProto(e.target.value)}>
+            <option value="simulated">SimulatedOTAdapter (Lokal / CI)</option>
+            <option value="modbus_tcp">ModbusTCPAdapter (Siemens S7 / Omron / Allen-Bradley)</option>
+            <option value="mqtt">MQTTIndustrialAdapter (factory/org/line/reject)</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Host PLC / MQTT Broker</span>
+          <input
+            value={otHost}
+            disabled={!canConfigureOt}
+            onChange={(e) => setOtHost(e.target.value)}
+            placeholder="192.168.10.50 atau mqtt://broker:1883"
+          />
+        </label>
+        <label className="field">
+          <span>Port & Trigger Register</span>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <input
+              type="number"
+              disabled={!canConfigureOt}
+              value={otPort}
+              onChange={(e) => setOtPort(Number(e.target.value))}
+              aria-label="Port OT"
+            />
+            <input
+              type="number"
+              disabled={!canConfigureOt}
+              value={trigReg}
+              onChange={(e) => setTrigReg(Number(e.target.value))}
+              aria-label="Trigger Register"
+            />
+          </div>
+        </label>
+        <label className="field">
+          <span>Reject Coil, Delay (ms) & Pulse (ms)</span>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <input
+              type="number"
+              disabled={!canConfigureOt}
+              value={rejCoil}
+              onChange={(e) => setRejCoil(Number(e.target.value))}
+              aria-label="Reject Coil"
+              title="Reject Coil Address"
+            />
+            <input
+              type="number"
+              disabled={!canConfigureOt}
+              value={rejDelay}
+              onChange={(e) => setRejDelay(Number(e.target.value))}
+              aria-label="Reject Delay ms"
+              title="Reject Delay ms (Travel time camera to nozzle)"
+            />
+            <input
+              type="number"
+              disabled={!canConfigureOt}
+              value={rejPulse}
+              onChange={(e) => setRejPulse(Number(e.target.value))}
+              aria-label="Reject Pulse ms"
+              title="Reject Pulse ms"
+            />
+          </div>
+        </label>
+      </div>
+      {canConfigureOt && (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
+          <Button
+            variant="secondary"
+            loading={savingOt}
+            onClick={async () => {
+              setSavingOt(true)
+              try {
+                await otApi.updateConfig(camera.id, {
+                  ot_protocol: otProto,
+                  ot_host: otHost,
+                  ot_port: Number(otPort),
+                  trigger_register: Number(trigReg),
+                  reject_coil: Number(rejCoil),
+                  reject_delay_ms: Number(rejDelay),
+                  reject_pulse_ms: Number(rejPulse),
+                })
+                onReload()
+                toast('Konfigurasi PLC & Actuator I/O berhasil disimpan.')
+              } catch (reason) {
+                toast(errorMessage(reason), 'warning')
+              } finally {
+                setSavingOt(false)
+              }
+            }}
+          >
+            Simpan Konfigurasi PLC
+          </Button>
+          <Button
+            variant="primary"
+            loading={testingPulse}
+            onClick={async () => {
+              setTestingPulse(true)
+              try {
+                const res = await otApi.testPulse(camera.id, {
+                  actuator_type: 'pneumatic_air_blast',
+                  reject_coil: Number(rejCoil),
+                  pulse_ms: Number(rejPulse),
+                })
+                toast(`Test Rejector Pulse berhasil dikirim ke ${res.rejector.plc_target} (${res.pulse_ms} ms) — tercatat di AuditLog.`)
+              } catch (reason) {
+                toast(errorMessage(reason), 'warning')
+              } finally {
+                setTestingPulse(false)
+              }
+            }}
+          >
+            <Zap size={15} />Test Rejector Pulse
+          </Button>
+        </div>
+      )}
+    </section>
   )
 }
 

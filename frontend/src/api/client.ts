@@ -4,11 +4,11 @@ const ACCESS_TOKEN_KEY = 'industrialvision.access_token'
 const REFRESH_TOKEN_KEY = 'industrialvision.refresh_token'
 
 export function getAccessToken() {
-  return sessionStorage.getItem(ACCESS_TOKEN_KEY)
+  return sessionStorage.getItem(ACCESS_TOKEN_KEY) ?? localStorage.getItem(ACCESS_TOKEN_KEY)
 }
 
 export function getRefreshToken() {
-  return sessionStorage.getItem(REFRESH_TOKEN_KEY)
+  return sessionStorage.getItem(REFRESH_TOKEN_KEY) ?? localStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
 export function saveTokens(accessToken: string, refreshToken: string, remember: boolean) {
@@ -79,7 +79,8 @@ api.interceptors.response.use(
             user_id: number
           }>('/auth/refresh', { refresh_token: refreshToken })
           const { access_token, refresh_token } = res.data
-          saveTokens(access_token, refresh_token, false)
+          const remember = localStorage.getItem(REFRESH_TOKEN_KEY) !== null
+          saveTokens(access_token, refresh_token, remember)
           processQueue(null, access_token)
           originalRequest.headers.Authorization = `Bearer ${access_token}`
           return api(originalRequest)
@@ -92,6 +93,7 @@ api.interceptors.response.use(
           isRefreshing = false
         }
       } else {
+        isRefreshing = false
         clearTokens()
         window.dispatchEvent(new Event('industrialvision:session-expired'))
         return Promise.reject(error)

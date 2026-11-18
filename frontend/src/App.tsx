@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
-import { AuthProvider } from './hooks/useAuth'
-import { LiveFeedProvider } from './hooks/useLiveFeed'
-import { ToastProvider } from './hooks/useToast'
+import { AuthProvider } from './components/AuthProvider'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { LiveFeedProvider } from './components/LiveFeedProvider'
+import { ToastProvider } from './components/ToastProvider'
 import { RequireAuth, RequireRole } from './components/AuthGuard'
 
 const AppShell = lazy(() => import('./layouts/AppShell'))
@@ -34,6 +35,7 @@ export default function App() {
       <AuthProvider>
         <LiveFeedProvider>
         <ToastProvider>
+          <ErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
@@ -61,6 +63,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
+          </ErrorBoundary>
         </ToastProvider>
         </LiveFeedProvider>
       </AuthProvider>

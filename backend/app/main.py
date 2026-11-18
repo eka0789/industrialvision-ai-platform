@@ -145,13 +145,22 @@ def create_app() -> FastAPI:
     _app.include_router(batches_router)
     _app.include_router(ot_router)
     # Also mount under /api/v1 prefix for explicit /api/v1/* callers
-    _app.include_router(skus_router, prefix=settings.API_V1_STR, include_in_schema=False)
-    _app.include_router(recipes_router, prefix=settings.API_V1_STR, include_in_schema=False)
-    _app.include_router(batches_router, prefix=settings.API_V1_STR, include_in_schema=False)
-    _app.include_router(ot_router, prefix=settings.API_V1_STR, include_in_schema=False)
-    _app.include_router(pdm_router, prefix=settings.API_V1_STR, include_in_schema=False)
-    _app.include_router(rag_router, prefix=settings.API_V1_STR, include_in_schema=False)
-    _app.include_router(agent_router, prefix=settings.API_V1_STR, include_in_schema=False)
+    for _v1_router in (
+        camera_router,
+        admin_router,
+        inspections_router,
+        models_router,
+        reports_router,
+        training_router,
+        skus_router,
+        recipes_router,
+        batches_router,
+        ot_router,
+        pdm_router,
+        rag_router,
+        agent_router,
+    ):
+        _app.include_router(_v1_router, prefix=settings.API_V1_STR, include_in_schema=False)
 
     @_app.get("/", tags=["root"])
     def root():
