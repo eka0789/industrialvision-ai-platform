@@ -22,9 +22,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div className="toast-region" aria-live="polite" aria-atomic="false">
         {toasts.map((toast) => (
           <div className={`toast toast--${toast.tone}`} key={toast.id}>
-            {toast.tone === 'success' ? <Check size={18} /> : toast.tone === 'warning' ? <CircleAlert size={18} /> : <Info size={18} />}
+            {toast.tone === 'success' ? <Check size={18} aria-hidden="true" /> : toast.tone === 'warning' ? <CircleAlert size={18} aria-hidden="true" /> : <Info size={18} aria-hidden="true" />}
             <span>{toast.message}</span>
-            <button className="icon-button" aria-label="Tutup notifikasi" onClick={() => dismiss(toast.id)}><X size={16} /></button>
+            <button type="button" className="icon-button" aria-label="Tutup notifikasi" onClick={() => dismiss(toast.id)}><X size={16} aria-hidden="true" /></button>
           </div>
         ))}
       </div>

@@ -11,7 +11,6 @@ import { errorMessage } from '../utils/errors'
 import { formatDate } from '../utils/format'
 
 function renderAnswer(answer: string, citations: RagCitation[]) {
-  // Inline [n] citations become links to the source chunk viewer.
   const parts = answer.split(/(\[\d{1,2}\])/g)
   return parts.map((part, index) => {
     const match = part.match(/^\[(\d{1,2})\]$/)
@@ -20,6 +19,7 @@ function renderAnswer(answer: string, citations: RagCitation[]) {
     if (!citation) return <span key={index}>{part}</span>
     return (
       <button
+        type="button"
         key={index}
         className="citation-link"
         title={`${citation.snippet}…`}
@@ -63,7 +63,7 @@ export default function KnowledgePage() {
     setUploading(true)
     try {
       await ragApi.upload(file)
-      toast('Dokumen diunggah — pemrosesan berjalan di latar belakang.')
+      toast('Dokumen diunggah. Pemrosesan berjalan di latar belakang.')
       documents.reload()
     } catch (reason) {
       toast(errorMessage(reason), 'warning')
@@ -108,9 +108,9 @@ export default function KnowledgePage() {
                 }
               }}
             >
-              <BookOpen size={16} />Muat SOP Pangan (HACCP)
+              <BookOpen size={16} aria-hidden="true" />Muat SOP Pangan (HACCP)
             </Button>
-            <Button loading={uploading} onClick={() => fileInput.current?.click()}><FileUp size={17} />Unggah dokumen</Button>
+            <Button loading={uploading} onClick={() => fileInput.current?.click()}><FileUp size={17} aria-hidden="true" />Unggah dokumen</Button>
           </>
         ) : undefined}
       />
@@ -127,7 +127,7 @@ export default function KnowledgePage() {
       />
 
       <section className="chat-section" aria-labelledby="chat-heading">
-        <h2 id="chat-heading"><MessageCircleQuestion size={18} /> Tanya basis pengetahuan</h2>
+        <h2 id="chat-heading"><MessageCircleQuestion size={18} aria-hidden="true" /> Tanya basis pengetahuan</h2>
         <form className="chat-form" onSubmit={ask}>
           <input
             value={question}
@@ -136,9 +136,9 @@ export default function KnowledgePage() {
             aria-label="Pertanyaan"
             maxLength={2000}
           />
-          <Button type="submit" loading={asking} disabled={!question.trim()}><Send size={16} />Tanya</Button>
+          <Button type="submit" loading={asking} disabled={!question.trim()}><Send size={16} aria-hidden="true" />Tanya</Button>
         </form>
-        {asking && <p className="chat-status" role="status"><LoaderCircle className="spin" size={16} /> Mencari sumber…</p>}
+        {asking && <p className="chat-status" role="status"><LoaderCircle className="spin" size={16} aria-hidden="true" /> Mencari sumber…</p>}
         {chat && (
           <div className={`chat-answer ${chat.status === 'refused' ? 'chat-answer--refused' : ''}`} data-testid="chat-answer">
             {chat.status === 'refused' ? (
@@ -147,21 +147,21 @@ export default function KnowledgePage() {
               <p className="answer-body">{renderAnswer(chat.answer, chat.citations)}</p>
             )}
             <p className="chat-meta">
-              Penyedia jawaban: <strong>{chat.provider}</strong>
-              {chat.provider === 'mock-demo' ? ' (jawaban ekstraktif lokal — tanpa LLM eksternal)' : ''}
+              Mode pencarian: <strong>{chat.provider === 'mock-demo' ? 'Ekstraktif lokal (tanpa LLM eksternal)' : chat.provider}</strong>
             </p>
             {!!chat.citations.length && (
               <ul className="citation-list">
                 {chat.citations.map((citation) => (
                   <li key={citation.index}>
                     <button
+                      type="button"
                       className="text-link"
                       onClick={() => {
                         setChunksFor(citation.document_id)
                         setTimeout(() => document.getElementById(`chunk-${citation.chunk_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400)
                       }}
                     >
-                      Sumber [{citation.index}] — dokumen #{citation.document_id}{citation.page ? `, hal. ${citation.page}` : ''}
+                      Sumber [{citation.index}]: dokumen #{citation.document_id}{citation.page ? `, hal. ${citation.page}` : ''}
                     </button>
                   </li>
                 ))}
@@ -172,7 +172,7 @@ export default function KnowledgePage() {
       </section>
 
       <section className="document-section" aria-labelledby="documents-heading">
-        <h2 id="documents-heading"><BookOpen size={18} /> Dokumen</h2>
+        <h2 id="documents-heading"><BookOpen size={18} aria-hidden="true" /> Dokumen</h2>
         {documents.isLoading && <LoadingBlock label="Membaca daftar dokumen…" />}
         {documents.error && <ErrorState message={documents.error} retry={documents.reload} />}
         {!documents.isLoading && !documents.error && !documents.data?.length && (
@@ -182,11 +182,11 @@ export default function KnowledgePage() {
           <ul className="document-list">
             {documents.data.map((document) => (
               <li className="document-item" key={document.id} data-testid={`document-${document.id}`}>
-                <FileText size={18} />
+                <FileText size={18} aria-hidden="true" />
                 <div className="document-info">
                   <strong>{document.title}</strong>
                   <small>
-                    {document.chunk_count} potongan · {document.embedding_provider ?? '—'} (dim {document.embedding_dim ?? '—'})
+                    {document.chunk_count} potongan · {document.embedding_provider ?? '-'} (dim {document.embedding_dim ?? '-'})
                     {document.created_at ? ` · ${formatDate(document.created_at)}` : ''}
                   </small>
                   {document.status === 'failed' && <small className="document-error" role="alert">Gagal: {document.error}</small>}
@@ -197,8 +197,8 @@ export default function KnowledgePage() {
                     {chunksFor === document.id ? 'Tutup' : 'Lihat potongan'}
                   </Button>
                   {canDelete && (
-                    <button className="icon-button" aria-label={`Hapus ${document.title}`} onClick={() => remove(document.id)}>
-                      <Trash2 size={16} />
+                    <button type="button" className="icon-button" aria-label={`Hapus ${document.title}`} onClick={() => remove(document.id)}>
+                      <Trash2 size={16} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -212,10 +212,13 @@ export default function KnowledgePage() {
         <section className="chunk-section" aria-labelledby="chunks-heading">
           <div className="chunk-head">
             <h2 id="chunks-heading">Potongan dokumen #{chunksFor}</h2>
-            <button className="icon-button" aria-label="Tutup potongan" onClick={() => setChunksFor(null)}><X size={16} /></button>
+            <button type="button" className="icon-button" aria-label="Tutup potongan" onClick={() => setChunksFor(null)}><X size={18} aria-hidden="true" /></button>
           </div>
           {chunks.isLoading && <LoadingBlock label="Membaca potongan…" />}
-          {!chunks.isLoading && !chunks.data?.length && <EmptyState title="Belum ada potongan" description="Dokumen belum selesai diproses atau tidak memuat teks." />}
+          {chunks.error && <ErrorState message={chunks.error} retry={chunks.reload} />}
+          {!chunks.isLoading && !chunks.error && !chunks.data?.length && (
+            <EmptyState title="Belum ada potongan" description="Dokumen belum selesai diproses atau tidak memuat teks." />
+          )}
           <ul className="chunk-list">
             {(chunks.data ?? []).map((chunk: RagChunk) => (
               <li id={`chunk-${chunk.id}`} className="chunk-item" key={chunk.id}>

@@ -28,7 +28,7 @@ export function InspectionDetail({ inspection, cameraName, previewUrl }: {
           <div><dt>Stasiun</dt><dd>{cameraName ?? cameraCode(inspection.camera_id)}</dd></div>
           <div><dt>Produk</dt><dd>{inspection.product_id ?? 'Tidak dicatat'}</dd></div>
           <div><dt>Batch</dt><dd>{inspection.batch_id ?? 'Tidak dicatat'}</dd></div>
-          <div><dt>Model</dt><dd>{inspection.model_name ?? '—'} <small>{inspection.model_version}</small></dd></div>
+          <div><dt>Model</dt><dd>{inspection.model_name ?? '-'} <small>{inspection.model_version}</small></dd></div>
           <div><dt>Latensi inferensi</dt><dd>{formatLatency(inspection.latency_ms)}</dd></div>
           <div><dt>Temuan</dt><dd>{inspection.detections.length} objek</dd></div>
         </dl>

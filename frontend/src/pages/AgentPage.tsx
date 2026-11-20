@@ -257,8 +257,7 @@ export default function AgentPage() {
               <p className="answer-body">{current.response}</p>
             )}
             <p className="chat-meta">
-              Penyedia perencana: <strong>{current.provider}</strong>
-              {current.provider === 'mock-demo' ? ' (perencana aturan lokal — tanpa LLM eksternal)' : ''} · {current.duration_ms ?? '—'} ms
+              Mode perencana: <strong>{current.provider === 'mock-demo' ? 'Aturan lokal (tanpa LLM eksternal)' : current.provider}</strong> · {current.duration_ms ?? '-'} ms
             </p>
             {!!current.tool_logs?.length && (
               <details className="tool-log">
@@ -318,7 +317,7 @@ export default function AgentPage() {
             <li className="document-item" key={run.id}>
               <div className="document-info">
                 <strong>{run.question}</strong>
-                <small>{formatDate(run.created_at)} · {run.duration_ms ?? '—'} ms</small>
+                <small>{formatDate(run.created_at)} · {run.duration_ms ?? '-'} ms</small>
               </div>
               <StatusBadge value={run.status === 'completed' ? 'active' : run.status === 'failed' ? 'error' : run.status} />
               <Button variant="secondary" onClick={() => setCurrent(run)}>Detail</Button>

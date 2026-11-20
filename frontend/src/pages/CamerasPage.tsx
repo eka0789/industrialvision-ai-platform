@@ -63,8 +63,8 @@ export default function CamerasPage() {
               <div className="camera-card-top"><span className="camera-number">{String(camera.id).padStart(2, '0')}</span><StatusBadge value={camera.status} /></div>
               <div className="camera-icon"><Cctv size={28} strokeWidth={1.4} /><span>{cameraCode(camera.id)}</span></div>
               <h2>{camera.name}</h2><p className="camera-identity">{camera.camera_identity ?? 'Identitas belum dilengkapi'}</p>
-              <dl className="camera-specs"><div><dt>Sumber</dt><dd>{sourceLabels[camera.source_type] ?? camera.source_type}</dd></div><div><dt>Resolusi</dt><dd>{camera.resolution ?? 'Tidak diatur'}</dd></div><div><dt>FPS input</dt><dd>{camera.fps_input ?? '—'}</dd></div><div><dt>Inspeksi terakhir</dt><dd>{formatDate(camera.last_inspection_at)}</dd></div></dl>
-              <button className="camera-card-link" onClick={() => setSelectedId(camera.id)}>Lihat detail stasiun<ArrowRight size={17} /></button>
+              <dl className="camera-specs"><div><dt>Sumber</dt><dd>{sourceLabels[camera.source_type] ?? camera.source_type}</dd></div><div><dt>Resolusi</dt><dd>{camera.resolution ?? 'Tidak diatur'}</dd></div><div><dt>FPS input</dt><dd>{camera.fps_input ?? '-'}</dd></div><div><dt>Inspeksi terakhir</dt><dd>{formatDate(camera.last_inspection_at)}</dd></div></dl>
+              <button type="button" className="camera-card-link" onClick={() => setSelectedId(camera.id)}>Lihat detail stasiun<ArrowRight size={17} aria-hidden="true" /></button>
             </article>
           ))}
         </div>
@@ -149,10 +149,10 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canConfig
       onChanged()
       toast(
         res.preprocessing.is_blurred
-          ? 'BLUR_ALERT: Lensa berembun terdeteksi — stasiun DEGRADED!'
+          ? 'BLUR_ALERT: Lensa berembun terdeteksi. Status stasiun DEGRADED.'
           : res.rejector.actuated
-            ? `FAIL (${res.defect_categories.join(', ')}) — Sinyal PLC Air-Blast Rejector dikirim (${res.inference_latency_ms} ms)`
-            : `PASS — Semua 3 Zona ROI lulus (${res.inference_latency_ms} ms)`,
+            ? `FAIL (${res.defect_categories.join(', ')}): Sinyal PLC Air-Blast Rejector dikirim (${res.inference_latency_ms} ms)`
+            : `PASS: Semua 3 Zona ROI lulus (${res.inference_latency_ms} ms)`,
         res.decision === 'PASS' ? 'info' : 'warning',
       )
     } catch (reason) {
@@ -169,23 +169,23 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canConfig
       {camera && <div className="detail-modal-content">
         <div className="detail-status-row"><StatusBadge value={camera.status} /><StatusBadge value={camera.is_active ? 'active' : 'inactive'} /></div>
         {camera.last_error && <div className="inline-notice inline-notice--error">{camera.last_error}</div>}
-        <dl className="data-list data-list--stacked"><div><dt>Kode stasiun</dt><dd>{cameraCode(camera.id)}</dd></div><div><dt>Identitas</dt><dd>{camera.camera_identity ?? '—'}</dd></div><div><dt>Jenis sumber</dt><dd>{sourceLabels[camera.source_type] ?? camera.source_type}</dd></div><div><dt>Lokasi sumber</dt><dd className="break-text">{camera.source_url ?? 'Unggah melalui browser'}</dd></div><div><dt>Resolusi / FPS</dt><dd>{camera.resolution ?? '—'} / {camera.fps_input ?? '—'}</dd></div><div><dt>Inspeksi terakhir</dt><dd>{formatDate(camera.last_inspection_at)}</dd></div></dl>
+        <dl className="data-list data-list--stacked"><div><dt>Kode stasiun</dt><dd>{cameraCode(camera.id)}</dd></div><div><dt>Identitas</dt><dd>{camera.camera_identity ?? '-'}</dd></div><div><dt>Jenis sumber</dt><dd>{sourceLabels[camera.source_type] ?? camera.source_type}</dd></div><div><dt>Lokasi sumber</dt><dd className="break-text">{camera.source_url ?? 'Unggah melalui browser'}</dd></div><div><dt>Resolusi / FPS</dt><dd>{camera.resolution ?? '-'} / {camera.fps_input ?? '-'}</dd></div><div><dt>Inspeksi terakhir</dt><dd>{formatDate(camera.last_inspection_at)}</dd></div></dl>
 
-        <section className="panel" style={{ marginTop: '1rem', padding: '0.85rem' }}>
-          <p className="eyebrow"><Layers size={14} /> FOOD DIVISION / SKU RECIPE & MULTI-ZONE ROI</p>
-          <p style={{ fontSize: '0.85rem', margin: '0.35rem 0' }}>
-            SKU Aktif: <strong>{activeRecipe ? `${activeRecipe.sku_code} — ${activeRecipe.name}` : 'Standar Multi-Zone (Default)'}</strong>
+        <section className="panel station-subpanel">
+          <p className="eyebrow"><Layers size={14} aria-hidden="true" /> SKU RECIPE & MULTI-ZONE ROI</p>
+          <p className="station-subpanel-desc">
+            SKU Aktif: <strong>{activeRecipe ? `${activeRecipe.sku_code} - ${activeRecipe.name}` : 'Standar Multi-Zone (Default)'}</strong>
             {' · '}Preprocessing: <code>CLAHE + Gamma {activeRecipe?.preprocessing_json.gamma ?? 1.2} + Blur Check (Laplacian &ge; {activeRecipe?.preprocessing_json.blur_threshold ?? 80})</code>
           </p>
-          <ul style={{ fontSize: '0.8rem', margin: '0.4rem 0', paddingLeft: '1.1rem' }}>
+          <ul className="station-zone-list">
             {(activeRecipe?.zones_json ?? []).map((zone) => (
               <li key={zone.zone_id}>
-                <strong>{zone.name}</strong> ({zone.zone_type}) — BBox: <code>[{zone.bbox.join(', ')}]</code>
+                <strong>{zone.name}</strong> ({zone.zone_type}), BBox: <code>[{zone.bbox.join(', ')}]</code>
               </li>
             ))}
           </ul>
           {!!(recipes.data ?? []).length && (
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+            <div className="station-action-row">
               {(recipes.data ?? [])
                 .filter((r): r is typeof r & { sku_code: string } => Boolean(r.sku_code))
                 .map((r) => (
@@ -194,73 +194,71 @@ function CameraDetailModal({ id, onClose, onChanged, onEdit, canAdmin, canConfig
                   variant={r.id === activeRecipe?.id ? 'primary' : 'secondary'}
                   onClick={() => switchRecipe(r.sku_code)}
                 >
-                  Changeover: {r.sku_code}
+                  Ganti SKU: {r.sku_code}
                 </Button>
               ))}
             </div>
           )}
-          <form onSubmit={createQuickRecipe} style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+          <form onSubmit={createQuickRecipe} className="inline-batch-form" style={{ marginTop: '12px' }}>
             <input
               value={newSku}
               onChange={(e) => setNewSku(e.target.value)}
               placeholder="Kode SKU baru (mis. BIS-STR-100G)"
               aria-label="Kode SKU baru"
-              style={{ flex: '1 1 140px' }}
             />
             <input
               value={newSkuName}
               onChange={(e) => setNewSkuName(e.target.value)}
               placeholder="Nama Varian Produk"
               aria-label="Nama Varian Produk"
-              style={{ flex: '1 1 160px' }}
             />
-            <Button type="submit" variant="secondary"><Plus size={14} />Tambah SKU</Button>
+            <Button type="submit" variant="secondary"><Plus size={14} aria-hidden="true" />Tambah SKU</Button>
           </form>
         </section>
 
-        <section className="panel" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
-          <p className="eyebrow"><Zap size={14} /> OT BRIDGE / PHOTOELECTRIC SENSOR & PLC REJECTOR</p>
-          <p style={{ fontSize: '0.8rem', margin: '0.35rem 0' }}>
+        <section className="panel station-subpanel">
+          <p className="eyebrow"><Zap size={14} aria-hidden="true" /> OT BRIDGE / SENSOR FOTOLISTRIK & PLC REJECTOR</p>
+          <p className="station-subpanel-desc">
             Simulasikan sinyal sensor fotolistrik konveyor (&le; 30 ms ONNX) dan aktuator penendang produk cacat (Modbus TCP / MQTT).
           </p>
-          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+          <div className="station-action-row">
             <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger(null, false)}>
-              Trigger PASS
+              Uji PASS
             </Button>
             <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger('seal_leak', false)}>
-              Trigger FAIL (Seal Leak)
+              Uji FAIL (Seal Leak)
             </Button>
             <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger('missing_exp_date', false)}>
-              Trigger FAIL (No Exp Date)
+              Uji FAIL (No Exp Date)
             </Button>
             <Button variant="secondary" loading={triggering} onClick={() => runOtTrigger(null, true)}>
               Simulasi Uap/Washdown (BLUR_ALERT)
             </Button>
           </div>
           {otResult && (
-            <div style={{ marginTop: '0.6rem', fontSize: '0.8rem' }}>
+            <div className="ot-result-box">
               <strong>Hasil Siklus OT #{otResult.trigger_event_id}:</strong> Keputusan <code>{otResult.decision}</code> ({otResult.inference_latency_ms} ms) ·
               Quality Guard: <code>{otResult.preprocessing.quality_status ?? otResult.preprocessing.status}</code> ·
               Laplacian Sharpness: <code>{otResult.preprocessing.sharpness_score ?? otResult.preprocessing.laplacian_variance}</code> (Ambang &ge; {otResult.preprocessing.blur_threshold}) ·
-              Luminance (Mean/Std): <code>{otResult.preprocessing.mean_luminance ?? '—'} / {otResult.preprocessing.std_luminance ?? '—'}</code> ({otResult.preprocessing.lighting_ok !== false ? 'LAMPU NORMAL' : 'LIGHTING FAILURE'}) ·
+              Luminance (Mean/Std): <code>{otResult.preprocessing.mean_luminance ?? '-'} / {otResult.preprocessing.std_luminance ?? '-'}</code> ({otResult.preprocessing.lighting_ok !== false ? 'LAMPU NORMAL' : 'LIGHTING FAILURE'}) ·
               PLC Rejector ({otResult.rejector.actuator_type}): <strong>{otResult.rejector.actuated ? `AKTIF (${otResult.rejector.plc_target})` : 'IDLE'}</strong>
             </div>
           )}
         </section>
 
-        <section className="panel" aria-label="Image Conditioning and Lens Health" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
-          <p className="eyebrow">IMAGE CONDITIONING & LENS HEALTH GUARD</p>
-          <dl className="data-list data-list--stacked" style={{ marginTop: '0.35rem' }}>
+        <section className="panel station-subpanel" aria-label="Image Conditioning and Lens Health">
+          <p className="eyebrow">KONDISI CITRA & KESEHATAN LENSA</p>
+          <dl className="data-list data-list--stacked">
             <div>
               <dt>Ketajaman Lensa (Laplacian)</dt>
-              <dd>{otResult ? `${otResult.preprocessing.sharpness_score ?? otResult.preprocessing.laplacian_variance} (min ${otResult.preprocessing.blur_threshold})` : `Ambang aktif: ≥ ${activeRecipe?.preprocessing_config?.blur_threshold ?? 80.0}`}</dd>
+              <dd>{otResult ? `${otResult.preprocessing.sharpness_score ?? otResult.preprocessing.laplacian_variance} (min ${otResult.preprocessing.blur_threshold})` : `Ambang aktif: >= ${activeRecipe?.preprocessing_config?.blur_threshold ?? 80.0}`}</dd>
             </div>
             <div>
               <dt>Status Pencahayaan & Kabut</dt>
-              <dd>{otResult ? `${otResult.preprocessing.quality_status ?? otResult.preprocessing.status} (Mean Y: ${otResult.preprocessing.mean_luminance ?? '—'})` : camera.status === 'degraded' ? 'DEGRADED — LENS_BLUR_OR_FOG' : 'NOMINAL (OK)'}</dd>
+              <dd>{otResult ? `${otResult.preprocessing.quality_status ?? otResult.preprocessing.status} (Mean Y: ${otResult.preprocessing.mean_luminance ?? '-'})` : camera.status === 'degraded' ? 'DEGRADED: LENS_BLUR_OR_FOG' : 'NOMINAL (OK)'}</dd>
             </div>
             <div>
-              <dt>Conditioning Pipeline</dt>
+              <dt>Pipeline Pengondisian</dt>
               <dd>CLAHE LAB + Gray-World White Balance + Gamma {activeRecipe?.preprocessing_config?.gamma ?? 1.2}</dd>
             </div>
           </dl>
@@ -296,9 +294,9 @@ function CameraOTConfigSection({ camera, canConfigureOt, onReload }: {
   const [testingPulse, setTestingPulse] = useState(false)
 
   return (
-    <section className="panel" aria-label="PLC and Actuator IO" style={{ marginTop: '0.85rem', padding: '0.85rem' }}>
-      <p className="eyebrow"><Zap size={14} /> PLC & ACTUATOR I/O (MODBUS TCP / MQTT / REJECTOR)</p>
-      <div className="form-grid form-grid--two" style={{ marginTop: '0.5rem' }}>
+    <section className="panel station-subpanel" aria-label="PLC and Actuator IO">
+      <p className="eyebrow"><Zap size={14} aria-hidden="true" /> PLC & ACTUATOR I/O (MODBUS TCP / MQTT / REJECTOR)</p>
+      <div className="form-grid form-grid--two" style={{ marginTop: '12px' }}>
         <label className="field">
           <span>Protokol OT</span>
           <select value={otProto} disabled={!canConfigureOt} onChange={(e) => setOtProto(e.target.value)}>
@@ -318,7 +316,7 @@ function CameraOTConfigSection({ camera, canConfigureOt, onReload }: {
         </label>
         <label className="field">
           <span>Port & Trigger Register</span>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <div className="ot-inline-row">
             <input
               type="number"
               disabled={!canConfigureOt}
@@ -337,7 +335,7 @@ function CameraOTConfigSection({ camera, canConfigureOt, onReload }: {
         </label>
         <label className="field">
           <span>Reject Coil, Delay (ms) & Pulse (ms)</span>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <div className="ot-inline-row">
             <input
               type="number"
               disabled={!canConfigureOt}
@@ -366,7 +364,7 @@ function CameraOTConfigSection({ camera, canConfigureOt, onReload }: {
         </label>
       </div>
       {canConfigureOt && (
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
+        <div className="station-action-row">
           <Button
             variant="secondary"
             loading={savingOt}
@@ -404,7 +402,7 @@ function CameraOTConfigSection({ camera, canConfigureOt, onReload }: {
                   reject_coil: Number(rejCoil),
                   pulse_ms: Number(rejPulse),
                 })
-                toast(`Test Rejector Pulse berhasil dikirim ke ${res.rejector.plc_target} (${res.pulse_ms} ms) — tercatat di AuditLog.`)
+                toast(`Test Rejector Pulse berhasil dikirim ke ${res.rejector.plc_target} (${res.pulse_ms} ms). Tercatat di AuditLog.`)
               } catch (reason) {
                 toast(errorMessage(reason), 'warning')
               } finally {
@@ -412,7 +410,7 @@ function CameraOTConfigSection({ camera, canConfigureOt, onReload }: {
               }
             }}
           >
-            <Zap size={15} />Test Rejector Pulse
+            <Zap size={15} aria-hidden="true" />Uji Rejector Pulse
           </Button>
         </div>
       )}
@@ -436,9 +434,9 @@ function CameraFormModal({ camera, onClose, onSaved }: { camera: CameraType | nu
     <Modal title={camera ? 'Edit stasiun' : 'Stasiun baru'} eyebrow={camera ? `EDIT / ${cameraCode(camera.id)}` : 'FLEET / NEW STATION'} onClose={onClose}>
       <form onSubmit={submit} className="modal-form">
         <p className="form-intro">Untuk alur inspeksi dari browser, pilih sumber <strong>Unggah gambar</strong>.</p>
-        <div className="form-grid form-grid--two"><label className="field field--full"><span>Nama stasiun <b>*</b></span><input required autoFocus maxLength={120} value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="cth. Inspeksi bracket — Line 01" /></label>{!camera && <label className="field field--full"><span>Identitas kamera <small>opsional</small></span><input maxLength={255} value={form.camera_identity ?? ''} onChange={(event) => update('camera_identity', event.target.value)} placeholder="cth. CAM-L01-04" /></label>}<label className="field"><span>Jenis sumber</span><select value={form.source_type} onChange={(event) => update('source_type', event.target.value)}><option value="upload">Unggah gambar</option><option value="webcam">Webcam</option><option value="rtsp">RTSP</option><option value="local_file">File lokal di server</option><option value="simulated">Simulasi (webcam fallback)</option></select></label><label className="field"><span>FPS input</span><input type="number" min="0.1" max="240" step="0.1" value={form.fps_input ?? ''} onChange={(event) => update('fps_input', event.target.value ? Number(event.target.value) : null)} /></label>{!['upload', 'simulated'].includes(form.source_type) && <label className="field field--full"><span>{form.source_type === 'webcam' ? 'Indeks perangkat' : 'URL / lokasi sumber'}</span><input value={form.source_url ?? ''} onChange={(event) => update('source_url', event.target.value)} placeholder={form.source_type === 'rtsp' ? 'rtsp://host:554/stream' : form.source_type === 'webcam' ? '0' : '/data/samples/line-01.mp4'} /><small>Jangan sertakan kredensial pada URL RTSP.</small></label>}<label className="field"><span>Resolusi</span><input maxLength={40} value={form.resolution ?? ''} onChange={(event) => update('resolution', event.target.value)} /></label><label className="checkbox-field form-active"><input type="checkbox" checked={form.is_active ?? true} onChange={(event) => update('is_active', event.target.checked)} /><span>Aktif untuk inspeksi</span></label></div>
+        <div className="form-grid form-grid--two"><label className="field field--full"><span>Nama stasiun <b>*</b></span><input required autoFocus maxLength={120} value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="cth. Inspeksi bracket - Line 01" /></label>{!camera && <label className="field field--full"><span>Identitas kamera <small>opsional</small></span><input maxLength={255} value={form.camera_identity ?? ''} onChange={(event) => update('camera_identity', event.target.value)} placeholder="cth. CAM-L01-04" /></label>}<label className="field"><span>Jenis sumber</span><select value={form.source_type} onChange={(event) => update('source_type', event.target.value)}><option value="upload">Unggah gambar</option><option value="webcam">Webcam</option><option value="rtsp">RTSP</option><option value="local_file">File lokal di server</option><option value="simulated">Simulasi (webcam fallback)</option></select></label><label className="field"><span>FPS input</span><input type="number" min="0.1" max="240" step="0.1" value={form.fps_input ?? ''} onChange={(event) => update('fps_input', event.target.value ? Number(event.target.value) : null)} /></label>{!['upload', 'simulated'].includes(form.source_type) && <label className="field field--full"><span>{form.source_type === 'webcam' ? 'Indeks perangkat' : 'URL / lokasi sumber'}</span><input value={form.source_url ?? ''} onChange={(event) => update('source_url', event.target.value)} placeholder={form.source_type === 'rtsp' ? 'rtsp://host:554/stream' : form.source_type === 'webcam' ? '0' : '/data/samples/line-01.mp4'} /><small>Jangan sertakan kredensial pada URL RTSP.</small></label>}<label className="field"><span>Resolusi</span><input maxLength={40} value={form.resolution ?? ''} onChange={(event) => update('resolution', event.target.value)} /></label><label className="checkbox-field form-active"><input type="checkbox" checked={form.is_active ?? true} onChange={(event) => update('is_active', event.target.checked)} /><span>Aktif untuk inspeksi</span></label></div>
         {error && <div className="form-error" role="alert">{error}</div>}
-        <div className="modal-actions"><Button type="button" variant="ghost" onClick={onClose}>Batal</Button><Button type="submit" loading={saving}>{camera ? 'Simpan perubahan' : 'Tambahkan stasiun'}<ArrowRight size={16} /></Button></div>
+        <div className="modal-actions"><Button type="button" variant="ghost" onClick={onClose}>Batal</Button><Button type="submit" loading={saving}>{camera ? 'Simpan perubahan' : 'Tambahkan stasiun'}</Button></div>
       </form>
     </Modal>
   )

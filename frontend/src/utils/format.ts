@@ -24,7 +24,7 @@ export const taskLabels: Record<string, string> = {
 export function formatDate(value: string | null | undefined, includeDate = true) {
   if (!value) return 'Belum ada'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
+  if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', {
     ...(includeDate ? { day: '2-digit', month: 'short', year: 'numeric' } : {}),
     hour: '2-digit',
@@ -41,7 +41,7 @@ export function cameraCode(id: number) {
 }
 
 export function formatLatency(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return '—'
+  if (value === null || !Number.isFinite(value)) return '-'
   return value < 1000 ? `${value.toFixed(1)} ms` : `${(value / 1000).toFixed(2)} s`
 }
 

@@ -47,9 +47,9 @@ export default function LoginPage() {
           <span className="schematic-corner schematic-corner--tl" /><span className="schematic-corner schematic-corner--tr" />
           <span className="schematic-corner schematic-corner--bl" /><span className="schematic-corner schematic-corner--br" />
           <div className="schematic-target"><i /><i /></div><span className="schematic-line" />
-          <small>OBJECT / INSPECTION</small><b>IV—01</b>
+          <small>OBJECT / INSPECTION</small><b>IV-01</b>
         </div>
-        <div className="login-editorial-footer"><span>MANUFACTURING / COMPUTER VISION</span><span className="mono">— 6°12′S 106°49′E</span></div>
+        <div className="login-editorial-footer"><span>MANUFACTURING / COMPUTER VISION</span><span className="mono">6°12′S 106°49′E</span></div>
       </section>
       <section className="login-form-section">
         <div className="login-form-wrap">

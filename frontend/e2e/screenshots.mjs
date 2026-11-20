@@ -112,7 +112,12 @@ const main = async () => {
   }
 
   // ── Screenshots ──────────────────────────────────────────────────────────
-  const browser = await chromium.launch({ headless: true })
+  let browser
+  try {
+    browser = await chromium.launch({ headless: true })
+  } catch {
+    browser = await chromium.launch({ headless: true, channel: 'msedge' })
+  }
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 2, // crisp text on GitHub
@@ -183,7 +188,7 @@ const main = async () => {
   await shot('09-maintenance-prediction', async () => {
     const predictButton = page.getByRole('button', { name: 'Prediksi' }).first()
     await predictButton.click()
-    await page.waitForSelector('#prediction-title', { timeout: 20000 })
+    await page.waitForSelector('dialog[open]', { timeout: 20000 })
     await page.waitForTimeout(500)
   })
 

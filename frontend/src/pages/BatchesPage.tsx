@@ -18,7 +18,7 @@ export default function BatchesPage() {
 
   const [batchCode, setBatchCode] = useState('')
   const [selectedSkuCode, setSelectedSkuCode] = useState('BIS-COK-100G')
-  const [lineName, setLineName] = useState('Line 01 — Biscuit Flow-Wrap')
+  const [lineName, setLineName] = useState('Line 01 - Biscuit Flow-Wrap')
   const [shift, setShift] = useState('SHIFT_1')
   const [targetQuantity, setTargetQuantity] = useState(5000)
   const [creating, setCreating] = useState(false)
@@ -43,7 +43,7 @@ export default function BatchesPage() {
       })
       setBatchCode('')
       batches.reload()
-      toast(`Production Batch "${code}" dimulai pada ${shift}.`)
+      toast(`Batch produksi "${code}" dimulai pada ${shift}.`)
     } catch (reason) {
       toast(errorMessage(reason), 'warning')
     } finally {
@@ -64,7 +64,7 @@ export default function BatchesPage() {
         await batchApi.close(batch.id)
         toast(`Batch ${batch.batch_code} ditutup (CLOSED).`)
       } else if (action === 'sign') {
-        await batchApi.sign(batch.id, 'Audit verified compliant with HACCP / ISO 22000 / FSSC 22000 / BPOM standards')
+        await batchApi.sign(batch.id, 'Audit terverifikasi sesuai standar HACCP / ISO 22000 / FSSC 22000 / BPOM')
         toast(`Tanda tangan digital SHA-256 QA Supervisor berhasil dibubuhkan pada ${batch.batch_code}.`)
       }
       batches.reload()
@@ -96,16 +96,16 @@ export default function BatchesPage() {
   return (
     <div className="page batches-page">
       <PageHeader
-        eyebrow="FOOD SAFETY & HACCP TRACEABILITY / FASE 2"
-        title={<>Batch & Audit Reports.<br /><span className="text-muted">Bukti siap audit untuk setiap lot.</span></>}
-        description="Kelola siklus hidup Production Batch/Lot per shift, pantau First Pass Yield (%), kebijakan Smart Evidence Retention (100% FAIL vs 1-in-100 PASS), dan unduh laporan resmi PDF/CSV."
+        eyebrow="KEAMANAN PANGAN & KETELUSURAN HACCP"
+        title={<>Batch & Laporan Audit.<br /><span className="text-muted">Bukti siap audit untuk setiap lot.</span></>}
+        description="Kelola siklus hidup batch/lot per shift, pantau First Pass Yield (%), kebijakan retensi bukti (100% FAIL vs 1-in-100 PASS), dan unduh laporan resmi PDF/CSV."
       />
 
       {canWrite && (
-        <section className="panel" aria-label="Mulai Production Batch Baru" style={{ marginBottom: '1.35rem', padding: '1.1rem' }}>
-          <header className="panel-header" style={{ padding: '0 0 0.75rem 0' }}>
+        <section className="panel panel--padded" aria-label="Mulai Batch Produksi Baru" style={{ marginBottom: '20px' }}>
+          <header className="panel-header panel-header--flush">
             <div>
-              <p className="eyebrow">START NEW PRODUCTION BATCH / LOT</p>
+              <p className="eyebrow">BATCH PRODUKSI BARU</p>
               <h2>Mulai Batch / Shift Produksi</h2>
             </div>
           </header>
@@ -117,7 +117,6 @@ export default function BatchesPage() {
                 value={batchCode}
                 onChange={(e) => setBatchCode(e.target.value)}
                 placeholder="mis. LOT-20261117-A1"
-                aria-label="Kode Batch atau Lot"
               />
             </label>
             <label className="field">
@@ -127,7 +126,6 @@ export default function BatchesPage() {
                 value={selectedSkuCode}
                 onChange={(e) => setSelectedSkuCode(e.target.value)}
                 placeholder="mis. BIS-COK-100G"
-                aria-label="Kode SKU Produk"
               />
               <datalist id="sku-options">
                 {(skus.data ?? []).map((s) => (
@@ -140,13 +138,12 @@ export default function BatchesPage() {
               <input
                 value={lineName}
                 onChange={(e) => setLineName(e.target.value)}
-                placeholder="Line 01 — Biscuit Flow-Wrap"
-                aria-label="Nama Lini Produksi"
+                placeholder="Line 01 - Biscuit Flow-Wrap"
               />
             </label>
             <label className="field">
               <span>Shift & Target Kuantitas</span>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div className="ot-inline-row">
                 <select value={shift} onChange={(e) => setShift(e.target.value)} aria-label="Shift">
                   <option value="SHIFT_1">SHIFT_1 (Pagi)</option>
                   <option value="SHIFT_2">SHIFT_2 (Siang)</option>
@@ -162,9 +159,9 @@ export default function BatchesPage() {
                 />
               </div>
             </label>
-            <div className="field field--full" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="field field--full form-actions-end">
               <Button type="submit" loading={creating}>
-                <Plus size={16} />Mulai Batch Aktif
+                <Plus size={16} aria-hidden="true" />Mulai Batch Aktif
               </Button>
             </div>
           </form>
@@ -185,94 +182,75 @@ export default function BatchesPage() {
           <EmptyState title="Belum ada batch produksi" description="Mulai batch produksi pertama di atas untuk melacak First Pass Yield dan bukti audit." />
         )}
 
-        <div style={{ display: 'grid', gap: '0.9rem', padding: '0.9rem 1.1rem' }}>
-          {(batches.data ?? []).map((b) => {
-            const normStatus = b.status.toUpperCase()
-            const isRunning = normStatus === 'ACTIVE'
-            const isPaused = normStatus === 'PAUSED'
-            return (
-              <article
-                key={b.id}
-                data-testid={`batch-row-${b.batch_code}`}
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: '2px',
-                  padding: '1rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '1rem',
-                }}
-              >
-                <div style={{ flex: '1 1 380px' }}>
-                  <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <strong style={{ fontSize: '1.05rem' }}>{b.batch_code}</strong>
-                    <StatusBadge value={isRunning ? 'active' : isPaused ? 'inactive' : 'connected'} />
-                    <span>SKU: <code>{b.sku_code}</code> · {b.line_name ?? 'Line 01'} · <strong>{b.shift}</strong></span>
-                  </div>
-                  <p style={{ margin: '0.35rem 0', fontSize: '0.86rem' }}>
-                    Total Produksi: <strong>{b.total_inspected} / {b.target_quantity ?? b.target_qty}</strong> pcs ·
-                    First Pass Yield: <strong>{b.first_pass_yield_pct ?? b.yield_pct}%</strong> (PASS: {b.total_pass} · FAIL: {b.total_fail} · REVIEW: {b.total_review})
-                  </p>
-                  <small style={{ display: 'block', opacity: 0.85 }}>
-                    Breakdown Defect:
-                    {' '}SEAL_DEFECT: <strong>{b.defect_counts.SEAL_DEFECT ?? b.defect_counts.seal_leak ?? 0}</strong> ·
-                    {' '}MISSING_EXP_DATE: <strong>{b.defect_counts.MISSING_EXP_DATE ?? b.defect_counts.missing_exp_date ?? 0}</strong> ·
-                    {' '}BURNT_OR_BROKEN: <strong>{b.defect_counts.BURNT_OR_BROKEN ?? b.defect_counts.burnt ?? 0}</strong> ·
-                    {' '}FOREIGN_MATTER: <strong>{b.defect_counts.FOREIGN_MATTER ?? b.defect_counts.foreign_matter ?? 0}</strong>
-                  </small>
-                  <small style={{ display: 'block', marginTop: '0.2rem', opacity: 0.75 }}>
-                    Mulai: {formatDate(b.started_at)} · Selesai: {b.closed_at ? formatDate(b.closed_at) : 'Masih Berjalan'}
-                  </small>
-                  {b.qa_signature_hash && (
-                    <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--success)' }}>
-                      <ShieldCheck size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                      Terverifikasi QA Supervisor (<strong>{b.qa_signed_by_username}</strong>) · SHA-256: <code>{b.qa_signature_hash.slice(0, 20)}…</code>
+        {!!(batches.data ?? []).length && (
+          <div className="batch-list">
+            {(batches.data ?? []).map((b) => {
+              const normStatus = b.status.toUpperCase()
+              const isRunning = normStatus === 'ACTIVE'
+              const isPaused = normStatus === 'PAUSED'
+              return (
+                <article className="batch-card" key={b.id} data-testid={`batch-row-${b.batch_code}`}>
+                  <div className="batch-card-info">
+                    <div className="batch-card-head">
+                      <strong>{b.batch_code}</strong>
+                      <StatusBadge value={isRunning ? 'active' : isPaused ? 'inactive' : 'connected'} />
+                      <span>SKU: <code>{b.sku_code}</code> · {b.line_name ?? 'Line 01'} · <strong>{b.shift}</strong></span>
+                    </div>
+                    <p className="batch-card-summary">
+                      Total Produksi: <strong>{b.total_inspected} / {b.target_quantity ?? b.target_qty}</strong> pcs ·
+                      First Pass Yield: <strong>{b.first_pass_yield_pct ?? b.yield_pct}%</strong> (PASS: {b.total_pass} · FAIL: {b.total_fail} · REVIEW: {b.total_review})
+                    </p>
+                    <small className="batch-card-defects">
+                      Rincian Cacat:
+                      {' '}SEAL_DEFECT: <strong>{b.defect_counts.SEAL_DEFECT ?? b.defect_counts.seal_leak ?? 0}</strong> ·
+                      {' '}MISSING_EXP_DATE: <strong>{b.defect_counts.MISSING_EXP_DATE ?? b.defect_counts.missing_exp_date ?? 0}</strong> ·
+                      {' '}BURNT_OR_BROKEN: <strong>{b.defect_counts.BURNT_OR_BROKEN ?? b.defect_counts.burnt ?? 0}</strong> ·
+                      {' '}FOREIGN_MATTER: <strong>{b.defect_counts.FOREIGN_MATTER ?? b.defect_counts.foreign_matter ?? 0}</strong>
                     </small>
-                  )}
-                </div>
+                    <small className="batch-card-times">
+                      Mulai: {formatDate(b.started_at)} · Selesai: {b.closed_at ? formatDate(b.closed_at) : 'Masih Berjalan'}
+                    </small>
+                    {b.qa_signature_hash && (
+                      <small className="batch-card-signed">
+                        <ShieldCheck size={14} aria-hidden="true" />
+                        <span>Terverifikasi QA Supervisor (<strong>{b.qa_signed_by_username}</strong>) · SHA-256: <code>{b.qa_signature_hash.slice(0, 20)}…</code></span>
+                      </small>
+                    )}
+                  </div>
 
-                <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                  {canWrite && isRunning && (
-                    <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'pause')}>
-                      <Pause size={15} />Pause
+                  <div className="batch-card-actions">
+                    {canWrite && isRunning && (
+                      <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'pause')}>
+                        <Pause size={15} aria-hidden="true" />Jeda
+                      </Button>
+                    )}
+                    {canWrite && isPaused && (
+                      <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'resume')}>
+                        <Play size={15} aria-hidden="true" />Lanjutkan
+                      </Button>
+                    )}
+                    {canWrite && (isRunning || isPaused) && (
+                      <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'close')}>
+                        <Square size={15} aria-hidden="true" />Tutup Batch
+                      </Button>
+                    )}
+                    {canSignQa && !b.qa_signature_hash && (
+                      <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'sign')}>
+                        <CheckCircle2 size={15} aria-hidden="true" />Verifikasi QA
+                      </Button>
+                    )}
+                    <Button variant="secondary" loading={busyId === b.id} onClick={() => downloadAuditReport(b, 'pdf')}>
+                      <FileText size={15} aria-hidden="true" /><Download size={14} aria-hidden="true" />Unduh PDF
                     </Button>
-                  )}
-                  {canWrite && isPaused && (
-                    <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'resume')}>
-                      <Play size={15} />Resume
+                    <Button variant="secondary" loading={busyId === b.id} onClick={() => downloadAuditReport(b, 'csv')}>
+                      <FileSpreadsheet size={15} aria-hidden="true" /><Download size={14} aria-hidden="true" />Unduh CSV
                     </Button>
-                  )}
-                  {canWrite && (isRunning || isPaused) && (
-                    <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'close')}>
-                      <Square size={15} />Close Batch
-                    </Button>
-                  )}
-                  {canSignQa && !b.qa_signature_hash && (
-                    <Button variant="secondary" loading={busyId === b.id} onClick={() => handleLifecycle(b, 'sign')}>
-                      <CheckCircle2 size={15} />Verifikasi QA
-                    </Button>
-                  )}
-                  <Button
-                    variant="secondary"
-                    loading={busyId === b.id}
-                    onClick={() => downloadAuditReport(b, 'pdf')}
-                  >
-                    <FileText size={15} /><Download size={14} />Unduh PDF
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    loading={busyId === b.id}
-                    onClick={() => downloadAuditReport(b, 'csv')}
-                  >
-                    <FileSpreadsheet size={15} /><Download size={14} />Unduh CSV
-                  </Button>
-                </div>
-              </article>
-            )
-          })}
-        </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
       </section>
     </div>
   )

@@ -4,12 +4,12 @@ import { ArrowUpRight, CircleAlert, Inbox, LoaderCircle, RotateCcw, X } from 'lu
 import type { Decision } from '../types'
 import { decisionLabels } from '../utils/format'
 
-export function Button({ children, variant = 'primary', loading = false, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+export function Button({ children, variant = 'primary', loading = false, className = '', type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'lime'
   loading?: boolean
 }) {
   return (
-    <button className={`button button--${variant} ${className}`} {...props} disabled={loading || props.disabled}>
+    <button type={type} className={`button button--${variant} ${className}`} {...props} disabled={loading || props.disabled}>
       {loading && <LoaderCircle className="spin" size={16} aria-hidden="true" />}
       {children}
     </button>
@@ -19,10 +19,25 @@ export function Button({ children, variant = 'primary', loading = false, classNa
 export function StatusBadge({ value }: { value: Decision | string }) {
   const key = value.toLowerCase()
   const labels: Record<string, string> = {
-    connected: 'Terhubung', disconnected: 'Terputus', degraded: 'Terganggu',
-    active: 'Aktif', inactive: 'Nonaktif', loaded: 'Termuat', unloaded: 'Belum dimuat',
+    connected: 'Terhubung',
+    disconnected: 'Terputus',
+    degraded: 'Terganggu',
+    active: 'Aktif',
+    inactive: 'Nonaktif',
+    loaded: 'Termuat',
+    unloaded: 'Belum dimuat',
+    warning: 'Peringatan',
+    pending: 'Menunggu',
+    processing: 'Memproses',
+    ready: 'Siap',
+    failed: 'Gagal',
   }
-  return <span className={`status-badge status-badge--${key}`}><i aria-hidden="true" />{decisionLabels[value as Decision] ?? labels[key] ?? value}</span>
+  return (
+    <span className={`status-badge status-badge--${key}`}>
+      <i aria-hidden="true" />
+      {decisionLabels[value as Decision] ?? labels[key] ?? value}
+    </span>
+  )
 }
 
 export function PageHeader({ eyebrow, title, description, actions }: {
@@ -41,16 +56,26 @@ export function PageHeader({ eyebrow, title, description, actions }: {
 }
 
 export function LoadingBlock({ label = 'Mengambil data dari server…' }: { label?: string }) {
-  return <div className="state-panel" role="status"><LoaderCircle className="spin" size={24} /><p>{label}</p><span className="loading-line" /></div>
+  return (
+    <div className="state-panel" role="status">
+      <LoaderCircle className="spin" size={24} aria-hidden="true" />
+      <p>{label}</p>
+      <span className="loading-line" aria-hidden="true" />
+    </div>
+  )
 }
 
 export function ErrorState({ message, retry }: { message: string; retry?: () => void }) {
   return (
     <div className="state-panel state-panel--error" role="alert">
-      <CircleAlert size={26} />
+      <CircleAlert size={26} aria-hidden="true" />
       <h2>Data belum dapat ditampilkan</h2>
       <p>{message}</p>
-      {retry && <Button variant="secondary" onClick={retry}><RotateCcw size={16} />Coba lagi</Button>}
+      {retry && (
+        <Button variant="secondary" onClick={retry}>
+          <RotateCcw size={16} aria-hidden="true" />Coba lagi
+        </Button>
+      )}
     </div>
   )
 }
@@ -58,7 +83,7 @@ export function ErrorState({ message, retry }: { message: string; retry?: () => 
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (
     <div className="state-panel">
-      <Inbox size={28} strokeWidth={1.5} />
+      <Inbox size={28} strokeWidth={1.5} aria-hidden="true" />
       <h2>{title}</h2>
       <p>{description}</p>
       {action}
@@ -75,19 +100,28 @@ export function Modal({ title, eyebrow, onClose, children, wide = false }: {
     const dialog = ref.current
     if (!dialog) return
     const overflow = document.body.style.overflow
-    dialog.showModal()
+    if (!dialog.open) dialog.showModal()
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = overflow }
   }, [])
 
   return (
-    <dialog ref={ref} className={`modal ${wide ? 'modal--wide' : ''}`} aria-labelledby={titleId}
+    <dialog
+      ref={ref}
+      className={`modal ${wide ? 'modal--wide' : ''}`}
+      aria-labelledby={titleId}
       onCancel={(event) => { event.preventDefault(); onClose() }}
-      onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      onClick={(event) => { if (event.target === event.currentTarget) onClose() }}
+    >
       <div className="modal-inner">
         <header className="modal-header">
-          <div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2 id={titleId}>{title}</h2></div>
-          <button type="button" className="icon-button" aria-label="Tutup dialog" onClick={onClose}><X size={21} /></button>
+          <div>
+            {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+            <h2 id={titleId}>{title}</h2>
+          </div>
+          <button type="button" className="icon-button" aria-label="Tutup dialog" onClick={onClose}>
+            <X size={20} aria-hidden="true" />
+          </button>
         </header>
         {children}
       </div>
@@ -96,5 +130,5 @@ export function Modal({ title, eyebrow, onClose, children, wide = false }: {
 }
 
 export function TextLink({ children }: { children: ReactNode }) {
-  return <span className="text-link">{children}<ArrowUpRight size={15} /></span>
+  return <span className="text-link">{children}<ArrowUpRight size={15} aria-hidden="true" /></span>
 }

@@ -51,7 +51,7 @@ export function EvidenceImage({ inspection, previewUrl }: { inspection: Inspecti
             )}
             <span className="viewfinder viewfinder--tl" aria-hidden="true" /><span className="viewfinder viewfinder--tr" aria-hidden="true" />
             <span className="viewfinder viewfinder--bl" aria-hidden="true" /><span className="viewfinder viewfinder--br" aria-hidden="true" />
-            <span className="evidence-coordinate">XY / {dimensions?.width ?? '—'} × {dimensions?.height ?? '—'}</span>
+            <span className="evidence-coordinate">XY / {dimensions?.width ?? '-'} × {dimensions?.height ?? '-'}</span>
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Activity, Check, CircleAlert, Cog, Plus, X } from 'lucide-react'
 import { pdmApi } from '../api'
-import { Button, EmptyState, ErrorState, LoadingBlock, PageHeader, StatusBadge } from '../components/Ui'
+import { Button, EmptyState, ErrorState, LoadingBlock, Modal, PageHeader, StatusBadge } from '../components/Ui'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
@@ -20,7 +20,7 @@ const priorityLabels: Record<string, string> = {
 const modeLabels: Record<string, string> = {
   model: 'Model terdaftar',
   'rules-only-fallback': 'Aturan ambang (fallback)',
-  error: 'Gagal — aman',
+  error: 'Gagal (aman)',
 }
 
 const machineTypeLabels: Record<string, string> = {
@@ -91,7 +91,7 @@ export default function MaintenancePage() {
         eyebrow="PERAWATAN PREDIKTIF"
         title={<>Rawat sebelum rusak.<br /><span className="text-muted">Keputusan tetap di tangan manusia.</span></>}
         description="Kesehatan mesin dari sensor (skema AI4I 2020). Prediksi bersifat dukungan keputusan; persetujuan perawatan selalu memerlukan persetujuan manusia."
-        actions={canWrite ? <Button onClick={() => setCreating(true)}><Plus size={17} />Daftarkan mesin</Button> : undefined}
+        actions={canWrite ? <Button onClick={() => setCreating(true)}><Plus size={17} aria-hidden="true" />Daftarkan mesin</Button> : undefined}
       />
 
       {machines.isLoading && <LoadingBlock label="Membaca daftar mesin…" />}
@@ -100,7 +100,7 @@ export default function MaintenancePage() {
         <EmptyState
           title="Belum ada mesin terdaftar"
           description={canWrite ? 'Daftarkan mesin pertama lalu kirim data sensor untuk mulai dipantau.' : 'Administrator perlu mendaftarkan mesin terlebih dahulu.'}
-          action={canWrite ? <Button onClick={() => setCreating(true)}><Plus size={17} />Daftarkan mesin</Button> : undefined}
+          action={canWrite ? <Button onClick={() => setCreating(true)}><Plus size={17} aria-hidden="true" />Daftarkan mesin</Button> : undefined}
         />
       )}
 
@@ -109,19 +109,19 @@ export default function MaintenancePage() {
           {machines.data.map((machine) => (
             <article className="machine-card" key={machine.id} data-testid={`machine-${machine.code}`}>
               <div className="machine-card-top">
-                <span className="machine-code" aria-hidden="true"><Cog size={16} />{machine.code}</span>
+                <span className="machine-code"><Cog size={16} aria-hidden="true" />{machine.code}</span>
                 <StatusBadge value={machine.status} />
               </div>
               <h2>{machine.name}</h2>
               <p className="machine-type">{machineTypeLabels[machine.machine_type] ?? machine.machine_type}</p>
               <div className={`card-metric ${healthTone(null)}`} aria-live="polite">
-                <Activity size={18} />
+                <Activity size={18} aria-hidden="true" />
                 <div>
-                  <strong>Indikator Mesin Pangan (Sealer Temp, Air Pressure, Motor Load, Vibration)</strong>
-                  <span>Tekan "Prediksi" atau "Korelasi Vision ↔ PdM" untuk evaluasi real-time.</span>
+                  <strong>Indikator Mesin Pangan (Suhu Sealer, Tekanan Udara, Arus Motor, Getaran)</strong>
+                  <span>Tekan Prediksi atau Korelasi Vision & PdM untuk evaluasi langsung.</span>
                 </div>
               </div>
-              <footer className="machine-card-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <footer className="machine-card-actions">
                 <Button variant="secondary" loading={predictingId === machine.id} onClick={() => predict(machine)}>
                   Prediksi
                 </Button>
@@ -166,7 +166,7 @@ export default function MaintenancePage() {
                         }
                       }}
                     >
-                      Korelasi Vision ↔ PdM
+                      Korelasi Vision & PdM
                     </Button>
                   </>
                 )}
@@ -198,8 +198,8 @@ export default function MaintenancePage() {
                 </div>
                 {canApprove && (
                   <div className="request-actions">
-                    <Button loading={decidingId === request.id} onClick={() => decide(request.id, true)}><Check size={15} />Setujui</Button>
-                    <Button variant="secondary" disabled={decidingId === request.id} onClick={() => decide(request.id, false)}><X size={15} />Tolak</Button>
+                    <Button loading={decidingId === request.id} onClick={() => decide(request.id, true)}><Check size={15} aria-hidden="true" />Setujui</Button>
+                    <Button variant="secondary" disabled={decidingId === request.id} onClick={() => decide(request.id, false)}><X size={15} aria-hidden="true" />Tolak</Button>
                   </div>
                 )}
               </li>
@@ -226,60 +226,59 @@ export default function MaintenancePage() {
 
 function PredictionPanel({ prediction, onClose }: { prediction: PdmPrediction; onClose: () => void }) {
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="prediction-title">
-      <div className="modal prediction-modal">
-        <div className="modal-head">
-          <h2 id="prediction-title">Prediksi mesin #{prediction.machine_id}</h2>
-          <button className="icon-button" onClick={onClose} aria-label="Tutup prediksi"><X size={18} /></button>
-        </div>
-        {prediction.mode === 'error' ? (
-          <div className="card-metric card-metric--danger" role="alert">
-            <CircleAlert size={18} />
-            <div>
-              <strong>Prediksi gagal (aman)</strong>
-              <span>{prediction.error}</span>
-            </div>
+    <Modal title={`Prediksi mesin #${prediction.machine_id}`} eyebrow="PERAWATAN PREDIKTIF / EVALUASI" onClose={onClose} wide>
+      {prediction.mode === 'error' ? (
+        <div className="card-metric card-metric--danger" role="alert">
+          <CircleAlert size={18} aria-hidden="true" />
+          <div>
+            <strong>Prediksi gagal (aman)</strong>
+            <span>{prediction.error}</span>
           </div>
-        ) : (
-          <>
-            <p className="prediction-mode">Sumber: {modeLabels[prediction.mode] ?? prediction.mode}{prediction.note ? ` — ${prediction.note}` : ''}</p>
+        </div>
+      ) : (
+        <>
+          <p className="prediction-mode">
+            Sumber: {modeLabels[prediction.mode] ?? prediction.mode}{prediction.note ? ` (${prediction.note})` : ''}
+          </p>
+          <dl className="prediction-grid">
+            <div><dt>Skor kesehatan</dt><dd>{prediction.health !== null ? `${Math.round(prediction.health * 100)}%` : '-'}</dd></div>
+            <div><dt>Probabilitas kegagalan</dt><dd>{prediction.failure_probability !== null ? `${(prediction.failure_probability * 100).toFixed(1)}%` : 'Aturan ambang'}</dd></div>
+            <div><dt>Sisa umur (RUL)</dt><dd>{prediction.rul_minutes !== null ? `${prediction.rul_minutes.toFixed(0)} menit` : '-'}</dd></div>
+            <div><dt>Rekomendasi</dt><dd>{prediction.recommendation}</dd></div>
+          </dl>
+          {!!prediction.failure_modes.length && (
+            <p className="prediction-modes">Mode kegagalan terpantau: {prediction.failure_modes.join(', ')}</p>
+          )}
+          {prediction.food_features && (
             <dl className="prediction-grid">
-              <div><dt>Skor kesehatan</dt><dd>{prediction.health !== null ? `${Math.round(prediction.health * 100)}%` : '—'}</dd></div>
-              <div><dt>Probabilitas kegagalan</dt><dd>{prediction.failure_probability !== null ? `${(prediction.failure_probability * 100).toFixed(1)}%` : '— (aturan ambang)'}</dd></div>
-              <div><dt>Sisa umur (RUL)</dt><dd>{prediction.rul_minutes !== null ? `${prediction.rul_minutes.toFixed(0)} menit` : '—'}</dd></div>
-              <div><dt>Rekomendasi</dt><dd>{prediction.recommendation}</dd></div>
+              <div><dt>Suhu Sealer</dt><dd>{prediction.food_features.sealer_temp_c ?? '-'} °C</dd></div>
+              <div><dt>Tekanan Udara</dt><dd>{prediction.food_features.pneumatic_pressure_bar ?? '-'} bar</dd></div>
+              <div><dt>Beban Motor</dt><dd>{prediction.food_features.motor_current_amp ?? prediction.food_features.motor_current_a ?? '-'} A</dd></div>
+              <div><dt>Getaran</dt><dd>{prediction.food_features.vibration_mm_s ?? '-'} mm/s</dd></div>
+              <div><dt>Kecepatan Konveyor</dt><dd>{prediction.food_features.conveyor_speed_mpm ?? '-'} m/min</dd></div>
+              <div><dt>Kelembapan</dt><dd>{prediction.food_features.ambient_humidity_pct ?? '-'} %</dd></div>
             </dl>
-            {!!prediction.failure_modes.length && (
-              <p className="prediction-modes">Mode kegagalan terpantau: {prediction.failure_modes.join(', ')}</p>
-            )}
-            {prediction.food_features && (
-              <dl className="prediction-grid" style={{ marginTop: '0.6rem' }}>
-                <div><dt>Sealer Temp</dt><dd>{prediction.food_features.sealer_temp_c ?? '—'} °C</dd></div>
-                <div><dt>Air Pressure</dt><dd>{prediction.food_features.pneumatic_pressure_bar ?? '—'} bar</dd></div>
-                <div><dt>Motor Load</dt><dd>{prediction.food_features.motor_current_amp ?? prediction.food_features.motor_current_a ?? '—'} A</dd></div>
-                <div><dt>Vibration</dt><dd>{prediction.food_features.vibration_mm_s ?? '—'} mm/s</dd></div>
-                <div><dt>Conveyor Speed</dt><dd>{prediction.food_features.conveyor_speed_mpm ?? '—'} m/min</dd></div>
-                <div><dt>Ambient Humidity</dt><dd>{prediction.food_features.ambient_humidity_pct ?? '—'} %</dd></div>
-              </dl>
-            )}
-            {prediction.vision_correlation && (
-              <div className={`card-metric ${prediction.vision_correlation.correlated ? 'card-metric--danger' : 'card-metric--ok'}`} style={{ marginTop: '0.75rem' }}>
-                <CircleAlert size={18} />
-                <div>
-                  <strong>
-                    {prediction.vision_correlation.correlated
-                      ? 'Badge Korelasi Vision AI ↔ PdM: ANOMALI TERKONFIRMASI'
-                      : 'Badge Korelasi Vision AI ↔ PdM: Normal'}
-                  </strong>
-                  <span>{prediction.vision_correlation.diagnosis ?? 'Tidak ada lonjakan SEAL_DEFECT berkorelasi.'}</span>
-                </div>
+          )}
+          {prediction.vision_correlation && (
+            <div className={`card-metric ${prediction.vision_correlation.correlated ? 'card-metric--danger' : 'card-metric--ok'}`}>
+              <CircleAlert size={18} aria-hidden="true" />
+              <div>
+                <strong>
+                  {prediction.vision_correlation.correlated
+                    ? 'Korelasi Vision AI & PdM: ANOMALI TERKONFIRMASI'
+                    : 'Korelasi Vision AI & PdM: Normal'}
+                </strong>
+                <span>{prediction.vision_correlation.diagnosis ?? 'Tidak ada lonjakan SEAL_DEFECT berkorelasi.'}</span>
               </div>
-            )}
-          </>
-        )}
-        <p className="page-footnote"><span>*</span> Skor kesehatan = 1 − probabilitas kegagalan (mode model), atau jumlah ambang terpicu (mode aturan). Bukan pengganti keputusan teknisi.</p>
+            </div>
+          )}
+        </>
+      )}
+      <p className="page-footnote"><span>*</span> Skor kesehatan = 1 - probabilitas kegagalan (mode model), atau jumlah ambang terpicu (mode aturan). Bukan pengganti keputusan teknisi.</p>
+      <div className="modal-actions">
+        <Button variant="secondary" onClick={onClose}>Tutup</Button>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -304,42 +303,36 @@ function MachineFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
   }
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="machine-form-title">
-      <div className="modal">
-        <div className="modal-head">
-          <h2 id="machine-form-title">Daftarkan mesin</h2>
-          <button className="icon-button" onClick={onClose} aria-label="Tutup formulir"><X size={18} /></button>
+    <Modal title="Daftarkan mesin" eyebrow="PERAWATAN PREDIKTIF / ASET BARU" onClose={onClose}>
+      <form onSubmit={submit} className="form-grid">
+        <label className="field">
+          <span>Nama mesin <b>*</b></span>
+          <input value={name} onChange={(event) => setName(event.target.value)} required autoFocus minLength={1} maxLength={160} placeholder="mis. Heat Sealer Lini 01" />
+        </label>
+        <label className="field">
+          <span>Kode mesin <b>*</b></span>
+          <input value={code} onChange={(event) => setCode(event.target.value)} required minLength={1} maxLength={80} placeholder="mis. FW-SEAL-01" />
+        </label>
+        <label className="field">
+          <span>Tipe mesin</span>
+          <select value={type} onChange={(event) => setType(event.target.value)}>
+            <option value="HEAT_SEALER">Heat Sealer Kemasan (HEAT_SEALER)</option>
+            <option value="FLOW_WRAPPER">Horizontal Flow Wrapper (FLOW_WRAPPER)</option>
+            <option value="CONVEYOR_DRIVE">Motor & Drive Konveyor (CONVEYOR_DRIVE)</option>
+            <option value="BAKING_OVEN">Oven Pemanggang (BAKING_OVEN)</option>
+            <option value="CHILLER_TUNNEL">Chiller / Cold Chain Tunnel (CHILLER_TUNNEL)</option>
+            <option value="food_packaging">Flow-Wrap / Heat Sealer Pangan (Legacy)</option>
+            <option value="press">Press</option>
+            <option value="cnc">CNC</option>
+            <option value="robot">Robot</option>
+            <option value="generic">Umum</option>
+          </select>
+        </label>
+        <div className="modal-actions">
+          <Button type="button" variant="ghost" onClick={onClose}>Batal</Button>
+          <Button type="submit" loading={saving}>Simpan mesin</Button>
         </div>
-        <form onSubmit={submit} className="form-stack">
-          <label>
-            Nama mesin
-            <input value={name} onChange={(event) => setName(event.target.value)} required minLength={1} maxLength={160} aria-label="Nama mesin" />
-          </label>
-          <label>
-            Kode mesin
-            <input value={code} onChange={(event) => setCode(event.target.value)} required minLength={1} maxLength={80} aria-label="Kode mesin" placeholder="mis. FW-SEAL-01" />
-          </label>
-          <label>
-            Tipe
-            <select value={type} onChange={(event) => setType(event.target.value)} aria-label="Tipe mesin">
-              <option value="HEAT_SEALER">Heat Sealer Kemasan (HEAT_SEALER)</option>
-              <option value="FLOW_WRAPPER">Horizontal Flow Wrapper (FLOW_WRAPPER)</option>
-              <option value="CONVEYOR_DRIVE">Motor & Drive Konveyor (CONVEYOR_DRIVE)</option>
-              <option value="BAKING_OVEN">Oven Pemanggang (BAKING_OVEN)</option>
-              <option value="CHILLER_TUNNEL">Chiller / Cold Chain Tunnel (CHILLER_TUNNEL)</option>
-              <option value="food_packaging">Flow-Wrap / Heat Sealer Pangan (Legacy)</option>
-              <option value="press">Press</option>
-              <option value="cnc">CNC</option>
-              <option value="robot">Robot</option>
-              <option value="generic">Umum</option>
-            </select>
-          </label>
-          <div className="modal-actions">
-            <Button type="button" variant="secondary" onClick={onClose}>Batal</Button>
-            <Button type="submit" loading={saving}>Simpan</Button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }

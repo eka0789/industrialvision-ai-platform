@@ -18,10 +18,10 @@ export function InspectionTable({ inspections, cameras = [], compact = false }: 
               <td data-label="Inspeksi"><Link className="record-id" to={`/inspections/${inspection.id}`}>{inspectionCode(inspection.id)}</Link>{inspection.batch_id && <small>Batch {inspection.batch_id}</small>}</td>
               <td data-label="Waktu">{formatDate(inspection.timestamp, !compact)}</td>
               <td data-label="Stasiun / produk"><strong>{cameraName(inspection.camera_id)}</strong><small>{inspection.product_id ?? 'Produk tidak dicatat'}</small></td>
-              {!compact && <td data-label="Model"><span>{inspection.model_name ?? '—'}</span><small>{inspection.model_version}</small></td>}
+              {!compact && <td data-label="Model"><span>{inspection.model_name ?? '-'}</span><small>{inspection.model_version}</small></td>}
               <td data-label="Latensi" className="mono">{formatLatency(inspection.latency_ms)}</td>
               <td data-label="Keputusan"><StatusBadge value={inspection.decision} /></td>
-              <td><Link className="icon-button row-action" to={`/inspections/${inspection.id}`} aria-label={`Buka ${inspectionCode(inspection.id)}`}><ArrowUpRight size={17} /></Link></td>
+              <td><Link className="icon-button row-action" to={`/inspections/${inspection.id}`} aria-label={`Buka ${inspectionCode(inspection.id)}`}><ArrowUpRight size={17} aria-hidden="true" /></Link></td>
             </tr>
           ))}
         </tbody>
